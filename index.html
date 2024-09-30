@@ -344,11 +344,11 @@
 
 				return (
 					<div 
-						className="absolute bg-white border shadow-md rounded-md py-2 z-50 context-menu"
+						className={`absolute ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-md rounded-md py-2 z-50 context-menu`}
 						style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
 					>
 						<button 
-							className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+							className={`block w-full text-left px-4 py-2 ${darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-100'}`}
 							onClick={handleDownloadLayer}
 						>
 							Download Layer
