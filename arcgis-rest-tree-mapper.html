@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArcGIS REST Tree Map</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .tree-node {
+            transition: all 0.3s ease;
+        }
+        
+        .tree-node:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div id="root" class="container mx-auto p-4"></div>
+
+    <script type="text/babel">
+        const ArcGISRESTTreeMap = () => {
+            const [url, setUrl] = React.useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
+            const [treeData, setTreeData] = React.useState({});
+            const [loading, setLoading] = React.useState(false);
+            const [error, setError] = React.useState(null);
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [skipProperties, setSkipProperties] = React.useState(true);
+            const [consoleMessages, setConsoleMessages] = React.useState([]);
+            const [selectedPreset, setSelectedPreset] = React.useState('');
+            const [expandedNodes, setExpandedNodes] = React.useState(new Set());
+            const [presets, setPresets] = React.useState([]);
+            const [shouldStop, setShouldStop] = React.useState(false);
+            const consoleRef = React.useRef(null);
+			const [filteredTreeData, setFilteredTreeData] = React.useState({});
+			const [abortController, setAbortController] = React.useState(null);
+			const [contextMenu, setContextMenu] = React.useState({ visible: false, x: 0, y: 0, nodeId: null });
+
+			React.useEffect(() => {
+				setFilteredTreeData(treeData);
+			}, [treeData]);
+
+            React.useEffect(() => {
+                fetchXMLPresets();
+            }, []);
+
+            React.useEffect(() => {
+                if (consoleRef.current) {
+                    consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+                }
+            }, [consoleMessages]);
+
+            const fetchXMLPresets = async () => {
+                const fileId = '1YVocX8rkonRdn9Ir_YQzhe94ZvTr2vGX';
+                const apiKey = 'AIzaSyDFakDNrjz0zmQj1ceJYPP4T862Ue4qOFQ';
+                const apiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
+                
+                try {
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const xmlText = await response.text();
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                    
+                    const connections = xmlDoc.getElementsByTagName('arcgisfeatureserver');
+                    const newPresets = Array.from(connections).map(connection => ({
+                        name: connection.getAttribute('name'),
+                        url: connection.getAttribute('url')
+                    }));
+                    
+                    setPresets(newPresets);
+                } catch (error) {
+                    setError('Error loading XML presets: ' + error.message);
+                    addConsoleMessage('Error loading XML presets: ' + error.message);
+                }
+            };
+
+            const addConsoleMessage = (message) => {
+                setConsoleMessages(prev => [...prev, message]);
+            };
+
+			const generateTreeMap = async () => {
+				setLoading(true);
+				setError(null);
+				setTreeData({});
+				setConsoleMessages([]);
+				setExpandedNodes(new Set());
+				
+				const controller = new AbortController();
+				setAbortController(controller);
+
+				try {
+					await fetchAndDisplayServices(url, '', controller.signal);
+				} catch (err) {
+					if (err.name === 'AbortError') {
+						addConsoleMessage('Operation was cancelled');
+					} else {
+						setError(err.message);
+						addConsoleMessage(`An error occurred: ${err.message}`);
+					}
+				} finally {
+					setLoading(false);
+					setAbortController(null);
+				}
+			};
+
+			const fetchAndDisplayServices = async (url, parent, signal) => {
+				if (signal.aborted) {
+					throw new Error('Operation was cancelled');
+				}
+				
+				addConsoleMessage(<React.Fragment>Processing content for <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{url}</a></React.Fragment>);
+				try {
+					const response = await axios.get(url, { 
+						params: { f: 'json' },
+						signal: signal
+					});
+					const data = response.data;
+
+					if (data.services) {
+						for (const service of data.services) {
+							if (signal.aborted) throw new Error('Operation was cancelled');
+							await processService(parent, service, url, signal);
+						}
+					}
+
+					if (data.layers) {
+						const serviceId = parent;
+						for (const layer of data.layers) {
+							if (signal.aborted) throw new Error('Operation was cancelled');
+							const layerId = getNextId();
+							const layerText = `${layer.name} (ID: ${layer.id})`;
+							const layerUrl = `${url}/${layer.id}`;
+							addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId);
+						}
+						setTreeData(prevData => ({
+							...prevData,
+							[parent]: { ...prevData[parent], hasChildren: true }
+						}));
+					}
+
+					if (data.folders) {
+						for (const folder of data.folders) {
+							if (signal.aborted) throw new Error('Operation was cancelled');
+							const folderId = getNextId();
+							const folderUrl = new URL(folder, url).href;
+							addTreeNode(parent, folder, 'folder', folderUrl, folderId);
+							await fetchAndDisplayServices(folderUrl, folderId, signal);
+						}
+					}
+
+                    if (!skipProperties) {
+                        for (const [key, value] of Object.entries(data)) {
+                            if (shouldStop) throw new Error('Operation stopped by user');
+                            if (['string', 'number', 'boolean'].includes(typeof value)) {
+                                const propId = getNextId();
+                                const propText = `${key}: ${value}`;
+                                addTreeNode(parent, propText, 'property', 'N/A', propId);
+                            }
+                        }
+                    }
+				} catch (error) {
+					if (error.name === 'AbortError' || error.message === 'Operation was cancelled') {
+						throw new Error('Operation was cancelled');
+					}
+					addConsoleMessage(`Error fetching services: ${error.message}`);
+					throw error;
+				}
+			};
+
+			const processService = async (parent, service, baseUrl, signal) => {
+				if (signal.aborted) {
+					throw new Error('Operation was cancelled');
+				}
+
+				const serviceUrl = new URL(`${service.name}/${service.type}`, baseUrl).href;
+				const serviceText = `${service.name} (${service.type})`;
+				const serviceId = getNextId();
+				addTreeNode(parent, serviceText, service.type, serviceUrl, serviceId);
+				
+				if (service.type === 'MapServer' || service.type === 'FeatureServer') {
+					await fetchAndDisplayServices(serviceUrl, serviceId, signal);
+				}
+			};
+
+            const addTreeNode = (parent, text, type, url, id) => {
+                setTreeData(prevData => ({
+                    ...prevData,
+                    [id]: { text, parent, type, url, hasChildren: false }
+                }));
+            };
+
+            const getNextId = (() => {
+                let counter = 0;
+                return () => {
+                    counter++;
+                    return `I${counter.toString().padStart(4, '0')}`;
+                };
+            })();
+
+            const toggleNode = (nodeId) => {
+                setExpandedNodes(prev => {
+                    const newSet = new Set(prev);
+                    if (newSet.has(nodeId)) {
+                        newSet.delete(nodeId);
+                    } else {
+                        newSet.add(nodeId);
+                    }
+                    return newSet;
+                });
+            };
+
+            const expandAll = () => {
+                const allNodes = Object.keys(treeData);
+                setExpandedNodes(new Set(allNodes));
+            };
+
+            const collapseAll = () => {
+                setExpandedNodes(new Set());
+            };
+			
+			const handleContextMenu = (e, nodeId) => {
+				e.preventDefault();
+				const node = filteredTreeData[nodeId];
+				if (node && node.type === 'layer') {
+					setContextMenu({
+						visible: true,
+						x: e.clientX,
+						y: e.clientY,
+						nodeId: nodeId
+					});
+				}
+			};
+
+			const handleDownloadLayer = async () => {
+				const node = filteredTreeData[contextMenu.nodeId];
+				if (!node) return;
+
+				try {
+					const response = await axios.get(`${node.url}?f=json`);
+					const layerInfo = response.data;
+
+					if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
+						const downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson`;
+						
+						// Fetch the GeoJSON data
+						const geojsonResponse = await fetch(downloadUrl);
+						const geojsonBlob = await geojsonResponse.blob();
+						
+						// Create a download link
+						const downloadLink = document.createElement('a');
+						downloadLink.href = URL.createObjectURL(geojsonBlob);
+						downloadLink.download = `${node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
+						
+						// Trigger the download
+						document.body.appendChild(downloadLink);
+						downloadLink.click();
+						document.body.removeChild(downloadLink);
+					} else {
+						alert('This layer does not support direct downloads. Please check the ArcGIS REST Services Directory for available operations.');
+					}
+				} catch (error) {
+					console.error('Error fetching layer info:', error);
+					alert('An error occurred while trying to download the layer.');
+				}
+
+				setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+			};
+
+			const renderContextMenu = () => {
+				if (!contextMenu.visible) return null;
+
+				return (
+					<div 
+						className="absolute bg-white border shadow-md rounded-md py-2 z-50"
+						style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+					>
+						<button 
+							className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+							onClick={handleDownloadLayer}
+						>
+							Download Layer
+						</button>
+					</div>
+				);
+			};
+
+			const renderTree = (nodeId, level = 0) => {
+				const node = filteredTreeData[nodeId];
+				if (!node) return null;
+
+				const childNodes = Object.entries(filteredTreeData)
+					.filter(([_, data]) => data.parent === nodeId)
+					.map(([childId, _]) => renderTree(childId, level + 1));
+
+				const isExpanded = expandedNodes.has(nodeId) || searchTerm !== '';
+
+				const getIcon = (type) => {
+					switch (type) {
+						case 'folder':
+							return <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>;
+						case 'layer':
+							return <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>;
+						case 'MapServer':
+						case 'FeatureServer':
+							return <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>;
+						default:
+							return <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>;
+					}
+				};
+					
+				const hasChildren = childNodes.length > 0 || node.hasChildren;
+
+				return (
+					<div 
+						key={nodeId} 
+						className={`ml-${level * 6} ${level === 0 ? 'mt-2' : ''} fade-in`}
+						onContextMenu={(e) => handleContextMenu(e, nodeId)}
+					>
+						<div className="flex items-center p-2 rounded-md tree-node">
+							{hasChildren && (
+								<button onClick={() => toggleNode(nodeId)} className="mr-2">
+									{isExpanded ? '▼' : '▶'}
+								</button>
+							)}
+							<span className="mr-2">
+								{getIcon(node.type)}
+							</span>
+							<span className="font-medium">{node.text}</span>
+							<span className="ml-2 text-sm text-gray-500">({node.type})</span>
+						</div>
+						{isExpanded && childNodes}
+					</div>
+				);
+			};
+
+            const isNodeVisible = (nodeId) => {
+                const node = treeData[nodeId];
+                if (!node) return false;
+                if (node.text.toLowerCase().includes(searchTerm.toLowerCase())) return true;
+                if (node.type === 'layer') return true;
+                return Object.keys(treeData).some(childId => 
+                    treeData[childId].parent === nodeId && isNodeVisible(childId)
+                );
+            };
+
+			const rootNodes = Object.entries(filteredTreeData)
+				.filter(([_, data]) => data.parent === '')
+				.map(([id, _]) => renderTree(id));
+
+            const handlePresetChange = (e) => {
+                const selectedUrl = e.target.value;
+                setSelectedPreset(selectedUrl);
+                setUrl(selectedUrl);
+            };
+
+			const handleSearchChange = (e) => {
+				const searchTerm = e.target.value.toLowerCase();
+				setSearchTerm(searchTerm);
+				
+				if (searchTerm === '') {
+					setFilteredTreeData(treeData);
+				} else {
+					const newFilteredData = {};
+					Object.entries(treeData).forEach(([id, node]) => {
+						if (node.text.toLowerCase().includes(searchTerm)) {
+							insertParentChain(id, newFilteredData);
+						}
+					});
+					setFilteredTreeData(newFilteredData);
+				}
+				
+				// Expand all nodes when searching
+				if (searchTerm !== '') {
+					expandAll();
+				}
+			};
+			
+			const insertParentChain = (id, filteredData) => {
+				const node = treeData[id];
+				if (!node) return;
+
+				filteredData[id] = { ...node };
+
+				if (node.parent) {
+					insertParentChain(node.parent, filteredData);
+				}
+			};
+
+			const handleStopProcessing = () => {
+				if (abortController) {
+					abortController.abort();
+					addConsoleMessage('Stopping the process...');
+				}
+			};
+			
+			const exportToCSV = () => {
+				const csvRows = [['Layer', 'Path']];
+				
+				const traverseTree = (nodeId, path = '') => {
+					const node = filteredTreeData[nodeId];
+					if (!node) return;
+
+					if (node.type === 'layer') {
+						csvRows.push([node.text, path]);
+					}
+
+					Object.entries(filteredTreeData)
+						.filter(([_, data]) => data.parent === nodeId)
+						.forEach(([childId, _]) => {
+							const newPath = path ? `${path}/${node.text}` : node.text;
+							traverseTree(childId, newPath);
+						});
+				};
+
+				Object.keys(filteredTreeData)
+					.filter(id => filteredTreeData[id].parent === '')
+					.forEach(id => traverseTree(id));
+
+				const csvContent = csvRows.map(row => row.join(',')).join('\n');
+				const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+				const link = document.createElement('a');
+				if (link.download !== undefined) {
+					const url = URL.createObjectURL(blob);
+					link.setAttribute('href', url);
+					link.setAttribute('download', 'arcgis_tree_map.csv');
+					link.style.visibility = 'hidden';
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+				}
+			};
+
+            return (
+                <div className="arcgis-rest-tree-map bg-white shadow-xl rounded-lg p-6 lg:flex lg:space-x-6">
+                    <div className="lg:w-1/2">
+                        <h1 className="text-3xl font-bold mb-6 text-gray-800">ArcGIS Directory Tree Mapper</h1>
+                        <div className="mb-6">
+                            <label className="block mb-2 font-semibold text-gray-700">
+                                Select a preset:
+                                <select
+                                    value={selectedPreset}
+                                    onChange={handlePresetChange}
+                                    className="w-full px-3 py-2 mt-1 text-gray-700 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">-- Select a preset --</option>
+                                    {presets.map((preset, index) => (
+                                        <option key={index} value={preset.url}>
+                                            {preset.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+                        <div className="mb-6">
+                            <label className="block mb-2 font-semibold text-gray-700">
+                                ArcGIS REST Services URL:
+                                <input
+                                    type="text"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    className="w-full px-3 py-2 mt-1 text-gray-700 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </label>
+                        </div>
+                        <div className="mb-6 flex items-center">
+                            <label className="flex items-center cursor-pointer">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        checked={skipProperties}
+                                        onChange={(e) => setSkipProperties(e.target.checked)}
+                                        className="sr-only"
+                                    />
+                                    <div className="w-10 h-6 bg-gray-300 rounded-full shadow-inner"></div>
+                                    <div className={`absolute w-4 h-4 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-4' : ''}`}></div>
+                                </div>
+                                <div className="ml-3 text-gray-700 font-medium">
+                                    Skip Properties
+                                </div>
+                            </label>
+                        </div>
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={generateTreeMap}
+                                disabled={loading}
+                                className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? (
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                ) : null}
+                                {loading ? 'Generating...' : 'Generate Tree Map'}
+                            </button>
+                            {loading && (
+                                <button
+                                    onClick={handleStopProcessing}
+                                    className="flex-1 bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition duration-300 ease-in-out"
+                                >
+                                    Stop
+                                </button>
+                            )}
+                        </div>
+						<div className="mt-6 flex justify-between">
+							<button onClick={expandAll} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
+								Expand All
+							</button>
+							<button onClick={collapseAll} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
+								Collapse All
+							</button>
+							<button onClick={exportToCSV} className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
+								Export to CSV
+							</button>
+						</div>
+                        <div className="mt-6">
+                            <label className="block mb-2 font-semibold text-gray-700">
+                                Search:
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={handleSearchChange}
+                                    className="w-full px-3 py-2 mt-1 text-gray-700 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </label>
+                        </div>
+                        {error && <div className="text-red-500 mt-4 p-3 bg-red-100 rounded-md">{error}</div>}
+                        <div 
+                            ref={consoleRef}
+                            className="console mt-6 border p-4 rounded-md bg-gray-800 text-gray-200 h-48 overflow-auto"
+                        >
+                            <h3 className="font-bold mb-2 text-white">Console Messages</h3>
+                            {consoleMessages.map((message, index) => (
+                                <div key={index} className="text-sm mb-1">{message}</div>
+                            ))}
+                        </div>
+                    </div>
+					<div className="lg:w-1/2 mt-6 lg:mt-0">
+						<div className="tree-container border p-4 rounded-md bg-gray-50 h-[calc(100vh-2rem)] overflow-auto">
+							{rootNodes}
+							{renderContextMenu()}
+						</div>
+					</div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<ArcGISRESTTreeMap />, document.getElementById('root'));
+    </script>
+</body>
+</html>
