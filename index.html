@@ -69,32 +69,28 @@
                 }
             }, [consoleMessages]);
 
-            const fetchXMLPresets = async () => {
-                const fileId = '1YVocX8rkonRdn9Ir_YQzhe94ZvTr2vGX';
-                const apiKey = 'AIzaSyDFakDNrjz0zmQj1ceJYPP4T862Ue4qOFQ';
-                const apiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
-                
-                try {
-                    const response = await fetch(apiUrl);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    const xmlText = await response.text();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-                    
-                    const connections = xmlDoc.getElementsByTagName('arcgisfeatureserver');
-                    const newPresets = Array.from(connections).map(connection => ({
-                        name: connection.getAttribute('name'),
-                        url: connection.getAttribute('url')
-                    }));
-                    
-                    setPresets(newPresets);
-                } catch (error) {
-                    setError('Error loading XML presets: ' + error.message);
-                    addConsoleMessage('Error loading XML presets: ' + error.message);
-                }
-            };
+			const fetchXMLPresets = async () => {
+				try {
+					const response = await fetch('ArcGIS Server List.xml');
+					if (!response.ok) {
+						throw new Error(`HTTP error! status: ${response.status}`);
+					}
+					const xmlText = await response.text();
+					const parser = new DOMParser();
+					const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+					
+					const connections = xmlDoc.getElementsByTagName('arcgisfeatureserver');
+					const newPresets = Array.from(connections).map(connection => ({
+						name: connection.getAttribute('name'),
+						url: connection.getAttribute('url')
+					}));
+					
+					setPresets(newPresets);
+				} catch (error) {
+					setError('Error loading XML presets: ' + error.message);
+					addConsoleMessage('Error loading XML presets: ' + error.message);
+				}
+			};
 
             const addConsoleMessage = (message) => {
                 setConsoleMessages(prev => [...prev, message]);
