@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArcGIS REST Tree Map</title>
+    <title>ArcGIS Tree Mapper</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
@@ -572,7 +572,7 @@
 									<div className={`absolute w-4 h-4 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-4' : ''}`}></div>
 								</div>
 								<div className={`ml-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'} font-medium`}>
-									Skip Properties
+									Skip Layer Properties
 								</div>
 							</label>
 							{isDownloading && (

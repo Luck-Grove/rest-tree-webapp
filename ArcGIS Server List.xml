@@ -3,23 +3,23 @@
     <arcgisfeatureserver name="AEP Pole Database" url="https://services.arcgis.com/eP8V7tJrYd6ZUBkc/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="CT - City of East Hartford GIS" url="https://gis.easthartfordct.gov/server/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="FL - Sarasota County GIS 1" url="https://services3.arcgis.com/icrWMv7eBkctFu1f/arcgis/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="FL - Sarasota County GIS 2" url="https://ags3.scgov.net/server/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="FL - Sarasota County GIS 2" url="https://ags3.scgov.net/server/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="FL - Sarasota County GIS 3" url="https://ags3.scgov.net/agsfed/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="KY - McCracken County GIS" url="https://services1.arcgis.com/xkOPDyh2DVxtFEGe/arcgis/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="ME - City of Caribou GIS" url="https://services6.arcgis.com/wckDyiH5YChe9aCy/ArcGIS/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="ME - City of Caribou GIS" url="https://services6.arcgis.com/wckDyiH5YChe9aCy/ArcGIS/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="NC - DOT" url="https://gis11.services.ncdot.gov/arcgis/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="NY - Broome County GIS" url="https://gis.broomecountyny.gov/arcgis/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="NY - Broome County GIS" url="https://gis.broomecountyny.gov/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="NY - City of Buffalo GIS" url="https://gis.buffalony.gov/server/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="NY - City of Rochester GIS" url="https://maps.cityofrochester.gov/arcgis/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="NY - City of Rochester GIS" url="https://maps.cityofrochester.gov/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="NY - Erie County GIS" url="https://gis.erie.gov/server/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="NY - Monroe County GIS" url="https://maps.monroecounty.gov/server/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="NY - Monroe County GIS" url="https://maps.monroecounty.gov/server/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="OH - Hamilton County GIS" url="https://cagisonline.hamilton-co.org/arcgis/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="OH - Medina County Sanitary GIS" url="https://mcsefv.medinaco.org/mcsegis/rest/services/MCSE/nonmcse_utilities/MapServer" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="OH - Montgomery County GIS" url="https://gis.mcohio.org/arcgis/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="OH - Medina County Sanitary GIS" url="https://mcsefv.medinaco.org/mcsegis/rest/services/" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="OH - Montgomery County GIS" url="https://gis.mcohio.org/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="OR - City of Salem GIS" url="https://services.arcgis.com/kIA6yS9KDGqZL7U3/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="PA - Berks County GIS" url="https://gis.co.berks.pa.us/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="PA - Lancaster County GIS" url="https://arcgis.lancastercountypa.gov/arcgis/rest/services/" username="" authcfg="" password=""/>
-    <arcgisfeatureserver name="WA - Yakima County GIS" url="https://services3.arcgis.com/9Qz94N8Zml9hnG84/arcgis/rest/services" username="" authcfg="" password=""/>
+    <arcgisfeatureserver name="WA - Yakima County GIS" url="https://services3.arcgis.com/9Qz94N8Zml9hnG84/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="WI - City of Madison GIS" url="https://maps.cityofmadison.com/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="WI - Marathon County GIS" url="https://gis2.co.marathon.wi.us/arcgis/rest/services/" username="" authcfg="" password=""/>
     <arcgisfeatureserver name="WI - Wood County GIS" url="https://gis.woodcountywi.gov/gis/rest/services/" username="" authcfg="" password=""/>
