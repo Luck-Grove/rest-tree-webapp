@@ -14,6 +14,8 @@
     <script src="https://unpkg.com/esri-leaflet@3.0.8/dist/esri-leaflet.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -500,6 +502,90 @@
                 }
             };
 
+			const handleDownloadShapefile = async (nodeId) => {
+				setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+				const node = filteredTreeData[nodeId];
+				if (!node) return;
+
+				setIsDownloading(true);
+				setStatusMessage('Initializing Shapefile download...');
+
+				try {
+					const response = await axios.get(`${node.url}?f=json`);
+					const layerInfo = response.data;
+
+					if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
+					let allFeatures = [];
+					let offset = 0;
+					const limit = 1000;
+					let hasMore = true;
+
+					while (hasMore) {
+						let downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
+						
+						// Add bounding box filter if present
+						if (boundingBox) {
+						const bounds = boundingBox.getBounds();
+						const bboxString = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+						downloadUrl += `&geometry=${encodeURIComponent(bboxString)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&outSR=4326`;
+						}
+
+						const geojsonResponse = await fetch(downloadUrl);
+						const geojsonData = await geojsonResponse.json();
+						
+						if (geojsonData.features && geojsonData.features.length > 0) {
+						allFeatures = allFeatures.concat(geojsonData.features);
+						offset += geojsonData.features.length;
+						hasMore = geojsonData.features.length === limit;
+						} else {
+						hasMore = false;
+						}
+
+						setStatusMessage(`Downloaded ${allFeatures.length} features...`);
+					}
+
+					if (allFeatures.length === 0) {
+						setStatusMessage('No features found within the bounding box.');
+						return;
+					}
+
+					const geojson = {
+						type: "FeatureCollection",
+						features: allFeatures
+					};
+
+					// Convert GeoJSON to Shapefile and trigger download
+					const options = {
+						folder: node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
+						types: {
+						point: 'points',
+						polygon: 'polygons',
+						line: 'lines'
+						},
+						filename: node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+					};
+
+					// Use the global shpwrite object
+					if (typeof shpwrite !== 'undefined') {
+						shpwrite.download(geojson, options);
+						setStatusMessage(`Shapefile download initiated for ${node.text}. ${allFeatures.length} features included.`);
+					} else {
+						throw new Error('shpwrite library is not properly loaded.');
+					}
+					} else {
+					setStatusMessage('This layer does not support querying features.');
+					}
+				} catch (error) {
+					console.error('Error fetching layer info:', error);
+					setStatusMessage(`Error downloading Shapefile: ${error.message}`);
+				} finally {
+					setTimeout(() => {
+					setIsDownloading(false);
+					setStatusMessage('');
+					}, 5000);
+				}
+				};
+			
 			React.useEffect(() => {
 				const handleClickOutside = (event) => {
 					if (contextMenu.visible && !event.target.closest('.context-menu')) {
@@ -525,7 +611,13 @@
 							className={`block w-full text-left px-4 py-2 ${darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-100'}`}
 							onClick={() => handleDownloadLayer(contextMenu.nodeId)}
 						>
-							Download Layer
+							Download GeoJSON
+						</button>
+						<button 
+							className={`block w-full text-left px-4 py-2 ${darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-100'}`}
+							onClick={() => handleDownloadShapefile(contextMenu.nodeId)}
+						>
+							Download Shapefile
 						</button>
 					</div>
 				);
