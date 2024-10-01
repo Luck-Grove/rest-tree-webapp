@@ -9,11 +9,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/esri-leaflet@3.0.8/dist/esri-leaflet.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
         body {
             font-family: 'Inter', sans-serif;
+            font-size: 14px;
         }
         
         .tree-node {
@@ -32,10 +36,39 @@
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        .floating-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+            max-height: calc(100vh - 20px);
+            overflow-y: auto;
+            max-width: 400px;
+        }
+
+        .leaflet-popup-content {
+            margin: 5px 5px;
+            line-height: 1.4;
+        }
+
+        .leaflet-popup-content-wrapper {
+            padding: 1px;
+            text-align: left;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
-    <div id="root" class="container mx-auto p-4"></div>
+    <div id="root"></div>
 
     <script type="text/babel">
         const ArcGISRESTTreeMap = () => {
@@ -56,21 +89,117 @@
             const [contextMenu, setContextMenu] = React.useState({ visible: false, x: 0, y: 0, nodeId: null });
             const [isDownloading, setIsDownloading] = React.useState(false);
             const [downloadStatus, setDownloadStatus] = React.useState('');
-            const [darkMode, setDarkMode] = React.useState(true); // Set dark mode as default
+            const [darkMode, setDarkMode] = React.useState(true);
+            const [sidebarOpen, setSidebarOpen] = React.useState(true);
+            const [map, setMap] = React.useState(null);
+            const [selectedLayers, setSelectedLayers] = React.useState(new Set());
+            const [address, setAddress] = React.useState('');
+            const [showOnlyActiveLayers, setShowOnlyActiveLayers] = React.useState(false);
+            const [visibleNodes, setVisibleNodes] = React.useState(new Set());
+			const [statusMessage, setStatusMessage] = React.useState('');
+			
+			const [basemap, setBasemap] = React.useState('default');
+
+			const basemaps = {
+				default: {
+					light: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+					dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+				},
+				esriAerial: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+				googleHybrid: 'http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}'
+			};
+			
+			React.useEffect(() => {
+				const mapInstance = L.map('map', {
+					center: [0, 0],
+					zoom: 2,
+					zoomControl: false
+				});
+				L.control.zoom({ position: 'topright' }).addTo(mapInstance);
+				setMap(mapInstance);
+
+				return () => {
+					mapInstance.remove();
+				};
+			}, []);
 
 			React.useEffect(() => {
-				setFilteredTreeData(treeData);
-			}, [treeData]);
+				if (map) {
+					map.eachLayer(layer => {
+						if (layer instanceof L.TileLayer) {
+							map.removeLayer(layer);
+						}
+					});
+
+					let tileUrl = basemap === 'default' 
+						? (darkMode ? basemaps.default.dark : basemaps.default.light)
+						: basemaps[basemap];
+
+					L.tileLayer(tileUrl, {
+						attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+					}).addTo(map);
+				}
+			}, [map, darkMode, basemap]);
+
+			React.useEffect(() => {
+				if (map) {
+					map.eachLayer(layer => {
+						if (layer instanceof L.esri.FeatureLayer) {
+							map.removeLayer(layer);
+						}
+					});
+
+					selectedLayers.forEach(layerId => {
+						const layer = treeData[layerId];
+						if (layer && layer.url) {
+							const featureLayer = L.esri.featureLayer({
+								url: layer.url
+							}).addTo(map);
+
+							featureLayer.on('click', function(e) {
+								const popupContent = '<div class="custom-popup ' + (darkMode ? 'dark' : 'light') + '">' + 
+									Object.entries(e.layer.feature.properties)
+										.map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+										.join('<br>') + 
+									'</div>';
+								
+								L.popup({
+									offset: L.point(0, -5),
+									maxHeight: 300,
+									maxWidth: 300,
+									className: darkMode ? 'dark-popup' : 'light-popup',
+									autoPan: false
+								})
+									.setLatLng(e.latlng)
+									.setContent(popupContent)
+									.openOn(map);
+							});
+						}
+					});
+				}
+			}, [selectedLayers, map, darkMode, treeData]);
+
+            React.useEffect(() => {
+                setFilteredTreeData(treeData);
+            }, [treeData]);
 
             React.useEffect(() => {
                 fetchXMLPresets();
             }, []);
 
+			React.useEffect(() => {
+				if (consoleRef.current) {
+					consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+				}
+			}, [consoleMessages]);
+			
             React.useEffect(() => {
-                if (consoleRef.current) {
-                    consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
-                }
-            }, [consoleMessages]);
+                const handleResize = () => {
+                    setSidebarOpen(window.innerWidth > 768);
+                };
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
 
 			const fetchXMLPresets = async () => {
 				try {
@@ -95,9 +224,9 @@
 				}
 			};
 
-            const addConsoleMessage = (message) => {
-                setConsoleMessages(prev => [...prev, message]);
-            };
+			const addConsoleMessage = (message) => {
+				setConsoleMessages(prev => [...prev, message]);
+			};
 
 			const generateTreeMap = async () => {
 				setLoading(true);
@@ -252,16 +381,13 @@
 				}
 			};
 
-			const handleDownloadLayer = async () => {
-				const node = filteredTreeData[contextMenu.nodeId];
+			const handleDownloadLayer = async (nodeId) => {
+				setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+				const node = filteredTreeData[nodeId];
 				if (!node) return;
 
-				// Immediately dismiss the context menu
-				setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
-
-				// Set downloading state
 				setIsDownloading(true);
-				setDownloadStatus('Initializing download...');
+				setStatusMessage('Initializing download...');
 
 				try {
 					const response = await axios.get(`${node.url}?f=json`);
@@ -270,7 +396,7 @@
 					if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
 						let allFeatures = [];
 						let offset = 0;
-						const limit = 1000; // Adjust this value based on the server's capabilities
+						const limit = 1000;
 						let hasMore = true;
 
 						while (hasMore) {
@@ -282,46 +408,39 @@
 							if (geojsonData.features && geojsonData.features.length > 0) {
 								allFeatures = allFeatures.concat(geojsonData.features);
 								offset += geojsonData.features.length;
-								
-								// Check if we've received fewer features than requested, indicating we're done
 								hasMore = geojsonData.features.length === limit;
 							} else {
 								hasMore = false;
 							}
 
-							// Update progress
-							setDownloadStatus(`Downloaded ${allFeatures.length} features...`);
+							setStatusMessage(`Downloaded ${allFeatures.length} features...`);
 						}
 
-						// Combine all features into a single GeoJSON object
 						const completeGeojson = {
 							type: "FeatureCollection",
 							features: allFeatures
 						};
 
-						// Create a download link
 						const blob = new Blob([JSON.stringify(completeGeojson)], { type: 'application/json' });
 						const downloadLink = document.createElement('a');
 						downloadLink.href = URL.createObjectURL(blob);
 						downloadLink.download = `${node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
 						
-						// Trigger the download
 						document.body.appendChild(downloadLink);
 						downloadLink.click();
 						document.body.removeChild(downloadLink);
 
-						setDownloadStatus(`Download completed for ${node.text}`);
+						setStatusMessage(`Download completed for ${node.text}`);
 					} else {
-						setDownloadStatus('This layer does not support direct downloads.');
+						setStatusMessage('This layer does not support direct downloads.');
 					}
 				} catch (error) {
 					console.error('Error fetching layer info:', error);
-					setDownloadStatus(`Error downloading layer: ${error.message}`);
+					setStatusMessage(`Error downloading layer: ${error.message}`);
 				} finally {
-					// Set a timeout to clear the download status after 5 seconds
 					setTimeout(() => {
 						setIsDownloading(false);
-						setDownloadStatus('');
+						setStatusMessage('');
 					}, 5000);
 				}
 			};
@@ -349,7 +468,7 @@
 					>
 						<button 
 							className={`block w-full text-left px-4 py-2 ${darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-100'}`}
-							onClick={handleDownloadLayer}
+							onClick={() => handleDownloadLayer(contextMenu.nodeId)}
 						>
 							Download Layer
 						</button>
@@ -357,15 +476,24 @@
 				);
 			};
 
-			const renderTree = (nodeId, level = 0) => {
-				const node = filteredTreeData[nodeId];
-				if (!node) return null;
+            const renderTree = (nodeId, level = 0) => {
+                const node = filteredTreeData[nodeId];
+                if (!node) return null;
 
-				const childNodes = Object.entries(filteredTreeData)
-					.filter(([_, data]) => data.parent === nodeId)
-					.map(([childId, _]) => renderTree(childId, level + 1));
+                if (showOnlyActiveLayers && !selectedLayers.has(nodeId) && node.type === 'layer') {
+                    return null;
+                }
 
-				const isExpanded = expandedNodes.has(nodeId) || searchTerm !== '';
+                const childNodes = Object.entries(filteredTreeData)
+                    .filter(([_, data]) => data.parent === nodeId)
+                    .map(([childId, _]) => renderTree(childId, level + 1))
+                    .filter(Boolean);
+
+                if (showOnlyActiveLayers && childNodes.length === 0 && node.type !== 'layer') {
+                    return null;
+                }
+
+                const isExpanded = expandedNodes.has(nodeId) || searchTerm !== '';
 
 				const getIcon = (type) => {
 					switch (type) {
@@ -381,30 +509,80 @@
 					}
 				};
 					
-				const hasChildren = childNodes.length > 0 || node.hasChildren;
+                const hasChildren = childNodes.length > 0 || node.hasChildren;
+                const isLayer = node.type === 'layer';
+                const hasLayerDescendant = isLayer || childNodes.some(child => child && child.props.hasLayerDescendant);
 
-				return (
-					<div 
-						key={nodeId} 
-						className={`ml-${level * 6} ${level === 0 ? 'mt-2' : ''} fade-in`}
-						onContextMenu={(e) => handleContextMenu(e, nodeId)}
-					>
-						<div className="flex items-center p-2 rounded-md tree-node">
-							{hasChildren && (
-								<button onClick={() => toggleNode(nodeId)} className="mr-2">
-									{isExpanded ? '▼' : '▶'}
-								</button>
-							)}
-							<span className="mr-2">
-								{getIcon(node.type)}
-							</span>
-							<span className="font-medium">{node.text}</span>
-							<span className="ml-2 text-sm text-gray-500">({node.type})</span>
-						</div>
-						{isExpanded && childNodes}
-					</div>
-				);
-			};
+                const handleCheckboxChange = (e) => {
+                    const isChecked = e.target.checked;
+                    if (isLayer) {
+                        setSelectedLayers(prev => {
+                            const newSet = new Set(prev);
+                            if (isChecked) {
+                                newSet.add(nodeId);
+                            } else {
+                                newSet.delete(nodeId);
+                            }
+                            return newSet;
+                        });
+                    } else {
+                        // If it's a folder, toggle all descendant layers
+                        const toggleDescendantLayers = (id, shouldAdd) => {
+                            const node = filteredTreeData[id];
+                            if (node.type === 'layer') {
+                                setSelectedLayers(prev => {
+                                    const newSet = new Set(prev);
+                                    if (shouldAdd) {
+                                        newSet.add(id);
+                                    } else {
+                                        newSet.delete(id);
+                                    }
+                                    return newSet;
+                                });
+                            }
+                            Object.entries(filteredTreeData)
+                                .filter(([_, data]) => data.parent === id)
+                                .forEach(([childId, _]) => toggleDescendantLayers(childId, shouldAdd));
+                        };
+                        toggleDescendantLayers(nodeId, isChecked);
+                    }
+                };
+
+					return (
+						<div 
+							key={nodeId} 
+							className={`ml-${level * 4} ${level === 0 ? 'mt-2' : ''} fade-in`}
+							onContextMenu={(e) => handleContextMenu(e, nodeId)}
+							onClick={() => {
+								if (node.type === 'layer' && selectedLayers.has(nodeId)) {
+									zoomToLayerExtent(nodeId);
+								}
+							}}
+						>
+                        <div className="flex items-center p-1 rounded-md tree-node">
+                            {hasLayerDescendant && (
+                                <input
+                                    type="checkbox"
+                                    checked={isLayer ? selectedLayers.has(nodeId) : childNodes.some(child => child && selectedLayers.has(child.key))}
+                                    onChange={handleCheckboxChange}
+                                    className="mr-2"
+                                />
+                            )}
+                            {hasChildren && (
+                                <button onClick={() => toggleNode(nodeId)} className="mr-2 text-xs">
+                                    {isExpanded ? '▼' : '▶'}
+                                </button>
+                            )}
+                            <span className="mr-2">
+                                {getIcon(node.type)}
+                            </span>
+                            <span className="font-medium text-sm">{node.text}</span>
+                            <span className="ml-2 text-xs text-gray-500">({node.type})</span>
+                        </div>
+                        {isExpanded && childNodes}
+                    </div>
+                );
+            };
 
             const isNodeVisible = (nodeId) => {
                 const node = treeData[nodeId];
@@ -426,27 +604,27 @@
                 setUrl(selectedUrl);
             };
 
-			const handleSearchChange = (e) => {
-				const searchTerm = e.target.value.toLowerCase();
-				setSearchTerm(searchTerm);
-				
-				if (searchTerm === '') {
-					setFilteredTreeData(treeData);
-				} else {
-					const newFilteredData = {};
-					Object.entries(treeData).forEach(([id, node]) => {
-						if (node.text.toLowerCase().includes(searchTerm)) {
-							insertParentChain(id, newFilteredData);
-						}
-					});
-					setFilteredTreeData(newFilteredData);
-				}
-				
-				// Expand all nodes when searching
-				if (searchTerm !== '') {
-					expandAll();
-				}
-			};
+            const handleSearchChange = (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                setSearchTerm(searchTerm);
+                
+                if (searchTerm === '') {
+                    setFilteredTreeData(treeData);
+                } else {
+                    const newFilteredData = {};
+                    Object.entries(treeData).forEach(([id, node]) => {
+                        if (node.text.toLowerCase().includes(searchTerm)) {
+                            insertParentChain(id, newFilteredData);
+                        }
+                    });
+                    setFilteredTreeData(newFilteredData);
+                }
+                
+                // Expand all nodes when searching
+                if (searchTerm !== '') {
+                    expandAll();
+                }
+            };
 			
 			const insertParentChain = (id, filteredData) => {
 				const node = treeData[id];
@@ -518,26 +696,131 @@
 					document.body.removeChild(link);
 				}
 			};
+			
+            React.useEffect(() => {
+                if (map) {
+                    map.eachLayer(layer => {
+                        if (layer instanceof L.TileLayer) return; // Keep the base map
+                        map.removeLayer(layer);
+                    });
+
+                    selectedLayers.forEach(layerId => {
+                        const layer = treeData[layerId];
+                        if (layer && layer.url) {
+                            const featureLayer = L.esri.featureLayer({
+                                url: layer.url
+                            }).addTo(map);
+
+                            featureLayer.on('click', function(e) {
+                                const popupContent = '<div>' + 
+                                    Object.entries(e.layer.feature.properties)
+                                        .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                                        .join('<br>') + 
+                                    '</div>';
+                                
+                                L.popup({offset: L.point(0, -5)})
+                                    .setLatLng(e.latlng)
+                                    .setContent(popupContent)
+                                    .openOn(map);
+                            });
+                        }
+                    });
+                }
+            }, [selectedLayers, map]);
+
+			const handleAddressSubmit = (e) => {
+				e.preventDefault();
+				if (map && address) {
+					fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+						.then(response => response.json())
+						.then(data => {
+							if (data && data.length > 0) {
+								const { lat, lon, boundingbox } = data[0];
+								if (boundingbox) {
+									map.fitBounds([
+										[boundingbox[0], boundingbox[2]],
+										[boundingbox[1], boundingbox[3]]
+									]);
+								} else {
+									map.setView([lat, lon], 13);
+								}
+							} else {
+								alert('Address not found');
+							}
+						})
+						.catch(error => {
+							console.error('Error in geocoding:', error);
+							alert('Error in geocoding. Please try again.');
+						});
+				}
+			};
+			
+			const zoomToLayerExtent = (layerId) => {
+				const layer = treeData[layerId];
+				if (layer && layer.url && map) {
+					L.esri.query({
+						url: layer.url
+					}).bounds(function(error, latLngBounds) {
+						if (error) {
+							console.error('Error getting layer extent:', error);
+							return;
+						}
+						if (latLngBounds) {
+							map.fitBounds(latLngBounds);
+						}
+					});
+				}
+			};
 
 			return (
-				<div className={`arcgis-rest-tree-map ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl rounded-lg p-6 lg:flex lg:space-x-6`}>
-					<div className="lg:w-1/2">
-						<div className="flex justify-between items-center mb-6">
-							<h1 className={`text-3xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>ArcGIS Directory Tree Mapper</h1>
-							<button
-								onClick={toggleDarkMode}
-								className={`px-4 py-2 rounded-md ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800'} hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}
+				<div className={`h-screen ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-800'}`}>
+					<div id="map" className="h-full w-full"></div>
+					
+					{/* Address bar */}
+					<div className="absolute top-4 left-1/3 z-[1001] w-1/3">
+						<form onSubmit={handleAddressSubmit} className="flex">
+							<input
+								type="text"
+								value={address}
+								onChange={(e) => setAddress(e.target.value)}
+								placeholder="Enter an address..."
+								className={`flex-grow px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+							/>
+							<button type="submit" className={`px-3 py-2 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white rounded-r-md`}>Go</button>
+						</form>
+					</div>
+
+					{/* Basemap selector */}
+					<div className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-gray-800 p-2 rounded shadow-md">
+						<select 
+							value={basemap} 
+							onChange={(e) => setBasemap(e.target.value)}
+							className={`px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}
+						>
+							<option value="default">Default OSM</option>
+							<option value="esriAerial">ESRI Aerial</option>
+							<option value="googleHybrid">Google Hybrid</option>
+						</select>
+					</div>
+
+					{/* Side panel */}
+					<div className={`floating-panel p-4 ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'}`}>
+						<div className="flex justify-between items-center mb-4">
+							<h1 className="text-xl font-bold">ArcGIS Directory Tree Mapper</h1>
+							<button 
+								onClick={toggleDarkMode} 
+								className={`px-3 py-1 rounded-md ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} text-sm hover:bg-opacity-80 transition duration-300 ease-in-out`}
 							>
-								{darkMode ? 'Light Mode' : 'Dark Mode'}
+								{darkMode ? 'Light' : 'Dark'}
 							</button>
 						</div>
-						<div className="mb-6">
-							<label className={`block mb-2 font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+						<div className="mb-4">
+							<label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
 								Select a preset:
 								<select
 									value={selectedPreset}
 									onChange={handlePresetChange}
-									className={`w-full px-3 py-2 mt-1 ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-700 bg-white'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+									className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
 								>
 									<option value="">-- Select a preset --</option>
 									{presets.map((preset, index) => (
@@ -548,18 +831,18 @@
 								</select>
 							</label>
 						</div>
-						<div className="mb-6">
-							<label className={`block mb-2 font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+						<div className="mb-4">
+							<label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
 								ArcGIS REST Services URL:
 								<input
 									type="text"
 									value={url}
 									onChange={(e) => setUrl(e.target.value)}
-									className={`w-full px-3 py-2 mt-1 ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-700 bg-white'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+									className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
 								/>
 							</label>
 						</div>
-						<div className="mb-6 flex items-center justify-between">
+						<div className="mb-4 flex items-center justify-between">
 							<label className="flex items-center cursor-pointer">
 								<div className="relative">
 									<input
@@ -568,91 +851,133 @@
 										onChange={(e) => setSkipProperties(e.target.checked)}
 										className="sr-only"
 									/>
-									<div className={`w-10 h-6 ${darkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded-full shadow-inner`}></div>
-									<div className={`absolute w-4 h-4 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-4' : ''}`}></div>
+									<div className={`w-8 h-5 ${darkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded-full shadow-inner`}></div>
+									<div className={`absolute w-3 h-3 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-3' : ''}`}></div>
 								</div>
-								<div className={`ml-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'} font-medium`}>
+								<div className={`ml-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-sm font-medium`}>
 									Skip Layer Properties
 								</div>
 							</label>
-							{isDownloading && (
-								<div className="flex items-center">
-									<span className={`mr-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{downloadStatus}</span>
-									<svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-										<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-										<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-									</svg>
-								</div>
-							)}
 						</div>
-						<div className="flex space-x-4">
+						<div className="flex space-x-2 mb-4">
 							<button
 								onClick={generateTreeMap}
 								disabled={loading}
-								className={`flex-1 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white px-4 py-2 rounded-md hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed`}
+								className={`flex-1 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white px-3 py-1 rounded-md text-sm hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed`}
 							>
-								{loading ? (
-									<svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-										<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-										<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-									</svg>
-								) : null}
 								{loading ? 'Generating...' : 'Generate Tree Map'}
 							</button>
 							{loading && (
 								<button
 									onClick={handleStopProcessing}
-									className="flex-1 bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition duration-300 ease-in-out"
+									className="flex-1 bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition duration-300 ease-in-out"
 								>
 									Stop
 								</button>
 							)}
 						</div>
-						<div className="mt-6 flex justify-between">
-							<button onClick={expandAll} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800'} px-4 py-2 rounded-md hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
+						<div className="mb-4 flex justify-between">
+							<button onClick={expandAll} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-sm hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
 								Expand All
 							</button>
-							<button onClick={collapseAll} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800'} px-4 py-2 rounded-md hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
+							<button onClick={collapseAll} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-sm hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
 								Collapse All
 							</button>
-							<button onClick={exportToCSV} className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
-								Export Treemap to CSV
+							<button onClick={exportToCSV} className="bg-green-500 text-white px-2 py-1 rounded-md text-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
+								Export CSV
 							</button>
 						</div>
-						<div className="mt-4">
-							<label className={`block mb-2 font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+						<div className="mb-4">
+							<label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
 								Search:
 								<input
 									type="text"
 									value={searchTerm}
 									onChange={handleSearchChange}
-									className={`w-full px-3 py-2 mt-1 ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-700 bg-white'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+									className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
 								/>
 							</label>
 						</div>
-						{error && <div className="text-red-500 mt-4 p-3 bg-red-100 rounded-md">{error}</div>}
-						<div 
-							ref={consoleRef}
-							className="console mt-6 border p-4 rounded-md bg-gray-800 text-gray-200 h-48 overflow-auto"
-						>
-							<h3 className="font-bold mb-2 text-white">Console Messages</h3>
-							{consoleMessages.map((message, index) => (
-								<div key={index} className="text-sm mb-1">{message}</div>
-							))}
+						<div className="mb-4">
+							<label className="flex items-center cursor-pointer">
+								<input
+									type="checkbox"
+									checked={showOnlyActiveLayers}
+									onChange={(e) => setShowOnlyActiveLayers(e.target.checked)}
+									className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+								/>
+								<span className={`ml-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-sm`}>Show only active layers</span>
+							</label>
 						</div>
-						<div className={`mt-4 p-3 ${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'} rounded-md`}>
-							<svg className="inline-block w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-							</svg>
-							<span className="font-medium">Tip:</span> Right-click on a layer and select "Download Layer" in the context menu to download the selected layer as a GeoJSON.
-						</div>
-					</div>
-					<div className="lg:w-1/2 mt-6 lg:mt-0">
-						<div className={`tree-container border p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} h-[calc(100vh-5rem)] overflow-auto`}>
+						
+						{/* Unified status area for errors, tips, and download status */}
+						{(error || statusMessage) && (
+							<div className={`mt-4 p-3 rounded-md text-sm ${
+								error ? 'bg-red-100 text-red-500' : 
+								isDownloading ? 'bg-blue-100 text-blue-500' : 
+								'bg-green-100 text-green-500'
+							}`}>
+								{error || statusMessage}
+							</div>
+						)}
+						
+						<div className={`tree-container mt-4 border p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} overflow-auto`} style={{maxHeight: 'calc(100vh - 26rem)'}}>
 							{rootNodes}
 							{renderContextMenu()}
 						</div>
+						
+						{/* Console */}
+						<div ref={consoleRef} className={`mt-4 h-40 overflow-auto p-2 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+							{consoleMessages.map((message, index) => (
+								<div key={index} className="text-sm">{message}</div>
+							))}
+						</div>
 					</div>
+
+					<style jsx global>{`
+						.floating-panel {
+							position: absolute;
+							top: 16px;
+							left: 16px;
+							width: 384px; /* Equivalent to w-96 */
+							z-index: 1000;
+							background-color: ${darkMode ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)'};
+							border-radius: 4px;
+							box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+							max-height: calc(100vh - 32px);
+							overflow-y: auto;
+						}
+						.leaflet-popup-content-wrapper {
+							padding: 0;
+						}
+						.leaflet-popup-content {
+							margin: 0;
+							max-height: 300px;
+							max-width: 300px;
+							overflow: auto;
+						}
+						.custom-popup {
+							padding: 10px;
+						}
+						.custom-popup.dark {
+							background-color: #1f2937;
+							color: #f3f4f6;
+						}
+						.custom-popup.light {
+							background-color: #ffffff;
+							color: #1f2937;
+						}
+						.dark-popup .leaflet-popup-content-wrapper,
+						.dark-popup .leaflet-popup-tip {
+							background-color: #1f2937;
+							color: #f3f4f6;
+						}
+						.light-popup .leaflet-popup-content-wrapper,
+						.light-popup .leaflet-popup-tip {
+							background-color: #ffffff;
+							color: #1f2937;
+						}
+					`}</style>
 				</div>
 			);
         };
