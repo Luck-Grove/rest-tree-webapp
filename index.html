@@ -126,9 +126,20 @@
             const [drawControl, setDrawControl] = React.useState(null);
 
             React.useEffect(() => {
+                // Load map position and zoom from cookie
+                const mapState = getCookie('mapState');
+                let initialView = [0, 0];
+                let initialZoom = 2;
+
+                if (mapState) {
+                    const { lat, lng, zoom } = JSON.parse(mapState);
+                    initialView = [lat, lng];
+                    initialZoom = zoom;
+                }
+
                 const mapInstance = L.map('map', {
-                    center: [0, 0],
-                    zoom: 2,
+                    center: initialView,
+                    zoom: initialZoom,
                     zoomControl: false
                 });
                 L.control.zoom({ position: 'topright' }).addTo(mapInstance);
@@ -138,6 +149,41 @@
                     mapInstance.remove();
                 };
             }, []);
+
+            React.useEffect(() => {
+                if (map) {
+                    // Add event listener to save map state
+                    const saveMapState = () => {
+                        const center = map.getCenter();
+                        const zoom = map.getZoom();
+                        const mapState = JSON.stringify({
+                            lat: center.lat,
+                            lng: center.lng,
+                            zoom: zoom
+                        });
+                        setCookie('mapState', mapState, 365); // Save for 1 year
+                    };
+
+                    map.on('moveend', saveMapState);
+
+                    // Clean up event listener
+                    return () => {
+                        map.off('moveend', saveMapState);
+                    };
+                }
+            }, [map]);
+
+            const setCookie = (name, value, days) => {
+                const expires = new Date(Date.now() + days * 864e5).toUTCString();
+                document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/';
+            };
+
+            const getCookie = (name) => {
+                return document.cookie.split('; ').reduce((r, v) => {
+                    const parts = v.split('=');
+                    return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+                }, '');
+            };
 
             React.useEffect(() => {
 				if (map) {
