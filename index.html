@@ -799,36 +799,57 @@
                     }
                 };
 
-					return (
-						<div 
-							key={nodeId} 
-							className={`ml-${level * 4} ${level === 0 ? 'mt-2' : ''} fade-in`}
-							onContextMenu={(e) => handleContextMenu(e, nodeId)}
-							onClick={() => {
-								if (node.type === 'layer' && selectedLayers.has(nodeId)) {
-									zoomToLayerExtent(nodeId);
-								}
-							}}
-						>
-                        <div className="flex items-center p-1 rounded-md tree-node">
-                            {hasLayerDescendant && (
-                                <input
-                                    type="checkbox"
-                                    checked={isLayer ? selectedLayers.has(nodeId) : childNodes.some(child => child && selectedLayers.has(child.key))}
-                                    onChange={handleCheckboxChange}
-                                    className="mr-2"
-                                />
+                return (
+                    <div 
+                        key={nodeId} 
+                        className={`ml-${level * 4} ${level === 0 ? 'mt-2' : ''} fade-in`}
+                        onContextMenu={(e) => handleContextMenu(e, nodeId)}
+                        onClick={() => {
+                            if (node.type === 'layer' && selectedLayers.has(nodeId)) {
+                                zoomToLayerExtent(nodeId);
+                            }
+                        }}
+                    >
+                        <div className="flex items-center justify-between p-1 rounded-md tree-node">
+                            <div className="flex items-center">
+                                {hasLayerDescendant && (
+                                    <input
+                                        type="checkbox"
+                                        checked={isLayer ? selectedLayers.has(nodeId) : childNodes.some(child => child && selectedLayers.has(child.key))}
+                                        onChange={handleCheckboxChange}
+                                        className="mr-2"
+                                    />
+                                )}
+                                {hasChildren && (
+                                    <button onClick={() => toggleNode(nodeId)} className="mr-2 text-xs">
+                                        {isExpanded ? '▼' : '▶'}
+                                    </button>
+                                )}
+                                <span className="mr-2">
+                                    {getIcon(node.type)}
+                                </span>
+                                <span className="font-medium text-sm">{node.text}</span>
+                                <span className="ml-2 text-xs text-gray-500">({node.type})</span>
+                            </div>
+                            {node.type === 'layer' && (
+                                <div className="flex items-center">
+                                    {/* Download Shapefile Button */}
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownloadShapefile(nodeId);
+                                        }}
+                                        className={`flex flex-col items-center p-1 ${darkMode ? 'text-gray-200 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}
+                                        title="Download Shapefile"
+                                    >
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M13 7h-2V3H9v4H7l3 3 3-3z"></path>
+                                            <path d="M5 13h10v2H5v-2z"></path>
+                                        </svg>
+                                        <span className="text-xs">SHP</span>
+                                    </button>
+                                </div>
                             )}
-                            {hasChildren && (
-                                <button onClick={() => toggleNode(nodeId)} className="mr-2 text-xs">
-                                    {isExpanded ? '▼' : '▶'}
-                                </button>
-                            )}
-                            <span className="mr-2">
-                                {getIcon(node.type)}
-                            </span>
-                            <span className="font-medium text-sm">{node.text}</span>
-                            <span className="ml-2 text-xs text-gray-500">({node.type})</span>
                         </div>
                         {isExpanded && childNodes}
                     </div>
