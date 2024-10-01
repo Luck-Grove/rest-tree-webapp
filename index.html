@@ -113,7 +113,15 @@
 				esriAerial: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 				googleHybrid: 'http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}'
 			};
-			
+
+			const handleBasemapChange = (e) => {
+				const selectedBasemap = e.target.value;
+				setBasemap(selectedBasemap);
+				
+				// Save basemap choice in a cookie
+				document.cookie = `basemap=${encodeURIComponent(selectedBasemap)}; path=/; max-age=31536000`; // 1 year
+			};
+
             const [boundingBox, setBoundingBox] = React.useState(null);
             const [drawControl, setDrawControl] = React.useState(null);
 
@@ -132,20 +140,20 @@
             }, []);
 
             React.useEffect(() => {
-                if (map) {
-                    map.eachLayer(layer => {
-                        if (layer instanceof L.TileLayer) {
-                            map.removeLayer(layer);
-                        }
-                    });
+				if (map) {
+					map.eachLayer(layer => {
+						if (layer instanceof L.TileLayer) {
+							map.removeLayer(layer);
+						}
+					});
 
-                    let tileUrl = basemap === 'default' 
-                        ? (darkMode ? basemaps.default.dark : basemaps.default.light)
-                        : basemaps[basemap];
+					let tileUrl = basemap === 'default' 
+						? (darkMode ? basemaps.default.dark : basemaps.default.light)
+						: basemaps[basemap];
 
-                    L.tileLayer(tileUrl, {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    }).addTo(map);
+					L.tileLayer(tileUrl, {
+						attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+					}).addTo(map);
 
                     // Add draw control for bounding box
                     const drawControlInstance = new L.Control.Draw({
@@ -186,6 +194,14 @@
                     };
                 }
             }, [map, darkMode, basemap]);
+
+			React.useEffect(() => {
+				const lastBasemap = document.cookie.split('; ').find(row => row.startsWith('basemap='));
+				if (lastBasemap) {
+					const value = lastBasemap.split('=')[1];
+					setBasemap(decodeURIComponent(value));
+				}
+			}, []);
 
 			React.useEffect(() => {
 				if (map) {
@@ -983,7 +999,7 @@
 					<div className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-gray-800 p-2 rounded shadow-md">
 						<select 
 							value={basemap} 
-							onChange={(e) => setBasemap(e.target.value)}
+							onChange={handleBasemapChange}
 							className={`px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}
 						>
 							<option value="default">Default OSM</option>
