@@ -270,7 +270,7 @@
 										.map(([key, value]) => `<strong>${key}:</strong> ${value}`)
 										.join('<br>') + 
 									'</div>';
-								
+
 								L.popup({
 									offset: L.point(0, -5),
 									maxHeight: 300,
@@ -895,9 +895,21 @@
 				}
 			};
 
+			React.useEffect(() => {
+				const savedDarkMode = getCookie('darkMode');
+				if (savedDarkMode !== null) {
+					setDarkMode(savedDarkMode === 'true');
+				}
+			}, []);
+
 			const toggleDarkMode = () => {
-                setDarkMode(!darkMode);
-            };
+				setDarkMode((prevDarkMode) => {
+					const newDarkMode = !prevDarkMode;
+					setCookie('darkMode', newDarkMode, 365); // Save for 1 year
+					return newDarkMode;
+				});
+			};
+
 
 			React.useEffect(() => {
                 if (darkMode) {
