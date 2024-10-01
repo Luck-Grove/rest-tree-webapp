@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://unpkg.com/esri-leaflet@3.0.8/dist/esri-leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -109,37 +111,78 @@
 				googleHybrid: 'http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}'
 			};
 			
-			React.useEffect(() => {
-				const mapInstance = L.map('map', {
-					center: [0, 0],
-					zoom: 2,
-					zoomControl: false
-				});
-				L.control.zoom({ position: 'topright' }).addTo(mapInstance);
-				setMap(mapInstance);
+            const [boundingBox, setBoundingBox] = React.useState(null);
+            const [drawControl, setDrawControl] = React.useState(null);
 
-				return () => {
-					mapInstance.remove();
-				};
-			}, []);
+            React.useEffect(() => {
+                const mapInstance = L.map('map', {
+                    center: [0, 0],
+                    zoom: 2,
+                    zoomControl: false
+                });
+                L.control.zoom({ position: 'topright' }).addTo(mapInstance);
+                setMap(mapInstance);
 
-			React.useEffect(() => {
-				if (map) {
-					map.eachLayer(layer => {
-						if (layer instanceof L.TileLayer) {
-							map.removeLayer(layer);
-						}
-					});
+                return () => {
+                    mapInstance.remove();
+                };
+            }, []);
 
-					let tileUrl = basemap === 'default' 
-						? (darkMode ? basemaps.default.dark : basemaps.default.light)
-						: basemaps[basemap];
+            React.useEffect(() => {
+                if (map) {
+                    map.eachLayer(layer => {
+                        if (layer instanceof L.TileLayer) {
+                            map.removeLayer(layer);
+                        }
+                    });
 
-					L.tileLayer(tileUrl, {
-						attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-					}).addTo(map);
-				}
-			}, [map, darkMode, basemap]);
+                    let tileUrl = basemap === 'default' 
+                        ? (darkMode ? basemaps.default.dark : basemaps.default.light)
+                        : basemaps[basemap];
+
+                    L.tileLayer(tileUrl, {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    // Add draw control for bounding box
+                    const drawControlInstance = new L.Control.Draw({
+                        position: 'topright',
+                        draw: {
+                            polyline: false,
+                            polygon: false,
+                            circle: false,
+                            marker: false,
+                            circlemarker: false,
+                            rectangle: {
+                                shapeOptions: {
+                                    color: '#3388ff'
+                                }
+                            }
+                        },
+                        edit: {
+                            featureGroup: new L.FeatureGroup(),
+                            remove: true
+                        }
+                    });
+                    map.addControl(drawControlInstance);
+                    setDrawControl(drawControlInstance);
+
+                    // Event listener for draw:created
+                    map.on(L.Draw.Event.CREATED, (e) => {
+                        if (e.layerType === 'rectangle') {
+                            if (boundingBox) {
+                                map.removeLayer(boundingBox);
+                            }
+                            map.addLayer(e.layer);
+                            setBoundingBox(e.layer);
+                        }
+                    });
+
+                    return () => {
+                        map.removeControl(drawControlInstance);
+                    };
+                }
+            }, [map, darkMode, basemap]);
 
 			React.useEffect(() => {
 				if (map) {
@@ -179,27 +222,27 @@
 				}
 			}, [selectedLayers, map, darkMode, treeData]);
 
-            React.useEffect(() => {
-                setFilteredTreeData(treeData);
-            }, [treeData]);
+			React.useEffect(() => {
+				setFilteredTreeData(treeData);
+			}, [treeData]);
 
-            React.useEffect(() => {
-                fetchXMLPresets();
-            }, []);
+			React.useEffect(() => {
+				fetchXMLPresets();
+			}, []);
 
 			React.useEffect(() => {
 				if (consoleRef.current) {
 					consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
 				}
 			}, [consoleMessages]);
-			
-            React.useEffect(() => {
-                const handleResize = () => {
-                    setSidebarOpen(window.innerWidth > 768);
-                };
-                window.addEventListener('resize', handleResize);
-                return () => window.removeEventListener('resize', handleResize);
-            }, []);
+
+			React.useEffect(() => {
+				const handleResize = () => {
+					setSidebarOpen(window.innerWidth > 768);
+				};
+				window.addEventListener('resize', handleResize);
+				return () => window.removeEventListener('resize', handleResize);
+			}, []);
 
 			const fetchXMLPresets = async () => {
 				try {
@@ -381,69 +424,81 @@
 				}
 			};
 
-			const handleDownloadLayer = async (nodeId) => {
-				setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
-				const node = filteredTreeData[nodeId];
-				if (!node) return;
+            const handleDownloadLayer = async (nodeId) => {
+                setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+                const node = filteredTreeData[nodeId];
+                if (!node) return;
 
-				setIsDownloading(true);
-				setStatusMessage('Initializing download...');
+                setIsDownloading(true);
+                setStatusMessage('Initializing download...');
 
-				try {
-					const response = await axios.get(`${node.url}?f=json`);
-					const layerInfo = response.data;
+                try {
+                    const response = await axios.get(`${node.url}?f=json`);
+                    const layerInfo = response.data;
 
-					if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
-						let allFeatures = [];
-						let offset = 0;
-						const limit = 1000;
-						let hasMore = true;
+                    if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
+                        let allFeatures = [];
+                        let offset = 0;
+                        const limit = 1000;
+                        let hasMore = true;
 
-						while (hasMore) {
-							const downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
-							
-							const geojsonResponse = await fetch(downloadUrl);
-							const geojsonData = await geojsonResponse.json();
-							
-							if (geojsonData.features && geojsonData.features.length > 0) {
-								allFeatures = allFeatures.concat(geojsonData.features);
-								offset += geojsonData.features.length;
-								hasMore = geojsonData.features.length === limit;
-							} else {
-								hasMore = false;
-							}
+                        while (hasMore) {
+                            let downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
+                            
+                            // Add bounding box filter if present
+                            if (boundingBox) {
+                                const bounds = boundingBox.getBounds();
+                                const bboxString = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+                                downloadUrl += `&geometry=${encodeURIComponent(bboxString)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&outSR=4326`;
+                            }
 
-							setStatusMessage(`Downloaded ${allFeatures.length} features...`);
-						}
+                            const geojsonResponse = await fetch(downloadUrl);
+                            const geojsonData = await geojsonResponse.json();
+                            
+                            if (geojsonData.features && geojsonData.features.length > 0) {
+                                allFeatures = allFeatures.concat(geojsonData.features);
+                                offset += geojsonData.features.length;
+                                hasMore = geojsonData.features.length === limit;
+                            } else {
+                                hasMore = false;
+                            }
 
-						const completeGeojson = {
-							type: "FeatureCollection",
-							features: allFeatures
-						};
+                            setStatusMessage(`Downloaded ${allFeatures.length} features...`);
+                        }
 
-						const blob = new Blob([JSON.stringify(completeGeojson)], { type: 'application/json' });
-						const downloadLink = document.createElement('a');
-						downloadLink.href = URL.createObjectURL(blob);
-						downloadLink.download = `${node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
-						
-						document.body.appendChild(downloadLink);
-						downloadLink.click();
-						document.body.removeChild(downloadLink);
+                        if (allFeatures.length === 0) {
+                            setStatusMessage('No features found within the bounding box.');
+                            return;
+                        }
 
-						setStatusMessage(`Download completed for ${node.text}`);
-					} else {
-						setStatusMessage('This layer does not support direct downloads.');
-					}
-				} catch (error) {
-					console.error('Error fetching layer info:', error);
-					setStatusMessage(`Error downloading layer: ${error.message}`);
-				} finally {
-					setTimeout(() => {
-						setIsDownloading(false);
-						setStatusMessage('');
-					}, 5000);
-				}
-			};
+                        const completeGeojson = {
+                            type: "FeatureCollection",
+                            features: allFeatures
+                        };
+
+                        const blob = new Blob([JSON.stringify(completeGeojson)], { type: 'application/json' });
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = URL.createObjectURL(blob);
+                        downloadLink.download = `${node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
+                        
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+
+                        setStatusMessage(`Download completed for ${node.text}. ${allFeatures.length} features downloaded.`);
+                    } else {
+                        setStatusMessage('This layer does not support direct downloads.');
+                    }
+                } catch (error) {
+                    console.error('Error fetching layer info:', error);
+                    setStatusMessage(`Error downloading layer: ${error.message}`);
+                } finally {
+                    setTimeout(() => {
+                        setIsDownloading(false);
+                        setStatusMessage('');
+                    }, 5000);
+                }
+            };
 
 			React.useEffect(() => {
 				const handleClickOutside = (event) => {
@@ -910,6 +965,13 @@
 							</label>
 						</div>
 						
+                        {/* Bounding box info */}
+                        {boundingBox && (
+                            <div className="mt-4 p-2 bg-blue-100 text-blue-800 rounded-md">
+                                Bounding box set. Downloads will be filtered to this area.
+                            </div>
+                        )}
+
 						{/* Unified status area for errors, tips, and download status */}
 						{(error || statusMessage) && (
 							<div className={`mt-4 p-3 rounded-md text-sm ${
@@ -977,7 +1039,7 @@
 							background-color: #ffffff;
 							color: #1f2937;
 						}
-					`}</style>
+                    `}</style>
 				</div>
 			);
         };
