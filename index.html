@@ -70,6 +70,43 @@
             text-align: left;
             border-radius: 4px;
         }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #888 transparent;
+        }
+
+        /* Dark mode scrollbar */
+        .dark ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+
+        .dark * {
+            scrollbar-color: #555 transparent;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -1357,7 +1394,7 @@
 							position: absolute;
 							top: 16px;
 							left: 16px;
-							width: 384px; /* Equivalent to w-96 */
+							width: 384px;
 							z-index: 1000;
 							background-color: ${darkMode ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)'};
 							border-radius: 4px;
@@ -1394,6 +1431,10 @@
 						.light-popup .leaflet-popup-tip {
 							background-color: #ffffff;
 							color: #1f2937;
+						}
+						.tree-container, .leaflet-popup-content, #consoleRef {
+							overflow-y: auto;
+							overflow-x: hidden;
 						}
                     `}</style>
 				</div>
