@@ -1455,7 +1455,7 @@
 						</div>
 						<div className="mb-4 relative" ref={presetInputRef}>
 							<label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-								Select or search for an ArcGIS server:
+								Select or search for a server:
 								<input
 									type="text"
 									value={selectedPreset}
@@ -1463,7 +1463,7 @@
 									onFocus={handlePresetInputFocus}
 									onKeyDown={handleKeyDown}
 									className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-									placeholder="Type to search or select a GIS server..."
+									placeholder="Type to search or select a server..."
 								/>
 							</label>
 							{showPresetDropdown && (
