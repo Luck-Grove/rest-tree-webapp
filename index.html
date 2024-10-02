@@ -243,6 +243,16 @@
 								handlePresetSelect(filteredPresets[highlightedIndex]);
 							}
 							break;
+						case ' ':
+							if (highlightedIndex !== -1) {
+								e.preventDefault();
+								const selectedPreset = filteredPresets[highlightedIndex];
+								setSelectedPreset(selectedPreset.name + ' ');
+								setUrl(selectedPreset.url + ' ');
+								setShowPresetDropdown(false);
+								setHighlightedIndex(-1);
+							}
+							break;
 						case 'Escape':
 							setShowPresetDropdown(false);
 							setHighlightedIndex(-1);
@@ -280,6 +290,15 @@
 							if (selectedSuggestionIndex !== -1) {
 								e.preventDefault();
 								handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+							}
+							break;
+						case ' ':
+							if (selectedSuggestionIndex !== -1) {
+								e.preventDefault();
+								const selectedSuggestion = suggestions[selectedSuggestionIndex];
+								setAddress(selectedSuggestion.display_name + ' ');
+								setShowSuggestions(false);
+								setSelectedSuggestionIndex(-1);
 							}
 							break;
 						case 'Escape':
