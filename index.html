@@ -135,7 +135,13 @@
             const [sidebarOpen, setSidebarOpen] = React.useState(true);
             const [map, setMap] = React.useState(null);
             const [selectedLayers, setSelectedLayers] = React.useState(new Set());
-            const [address, setAddress] = React.useState('');
+			const [address, setAddress] = React.useState('');
+			const [suggestions, setSuggestions] = React.useState([]);
+			const [showSuggestions, setShowSuggestions] = React.useState(false);
+			const [selectedSuggestionIndex, setSelectedSuggestionIndex] = React.useState(-1);
+			const suggestionTimeoutRef = React.useRef(null);
+			const addressInputRef = React.useRef(null);
+			const suggestionsRef = React.useRef(null);
             const [showOnlyActiveLayers, setShowOnlyActiveLayers] = React.useState(false);
             const [visibleNodes, setVisibleNodes] = React.useState(new Set());
 			const [statusMessage, setStatusMessage] = React.useState('');
@@ -205,37 +211,84 @@
 			};
 
 			const handleKeyDown = (e) => {
-				if (!showPresetDropdown) return;
-
-				switch (e.key) {
-					case 'ArrowDown':
-						e.preventDefault();
-						setHighlightedIndex(prevIndex => 
-							prevIndex < filteredPresets.length - 1 ? prevIndex + 1 : prevIndex
-						);
-						break;
-					case 'ArrowUp':
-						e.preventDefault();
-						setHighlightedIndex(prevIndex => (prevIndex > 0 ? prevIndex - 1 : 0));
-						break;
-					case 'Enter':
-						e.preventDefault();
-						if (highlightedIndex !== -1) {
-							handlePresetSelect(filteredPresets[highlightedIndex]);
-						}
-						break;
-					case 'Tab':
-						if (highlightedIndex !== -1) {
+				if (showPresetDropdown) {
+					switch (e.key) {
+						case 'ArrowDown':
 							e.preventDefault();
-							handlePresetSelect(filteredPresets[highlightedIndex]);
-						}
-						break;
-					case 'Escape':
-						setShowPresetDropdown(false);
-						setHighlightedIndex(-1);
-						break;
-					default:
-						break;
+							setHighlightedIndex(prevIndex => 
+								prevIndex < filteredPresets.length - 1 ? prevIndex + 1 : 0
+							);
+							break;
+						case 'Tab':
+							e.preventDefault();
+							if (e.shiftKey) {
+								setHighlightedIndex(prevIndex => 
+									prevIndex > 0 ? prevIndex - 1 : filteredPresets.length - 1
+								);
+							} else {
+								setHighlightedIndex(prevIndex => 
+									prevIndex < filteredPresets.length - 1 ? prevIndex + 1 : 0
+								);
+							}
+							break;
+						case 'ArrowUp':
+							e.preventDefault();
+							setHighlightedIndex(prevIndex => 
+								prevIndex > 0 ? prevIndex - 1 : filteredPresets.length - 1
+							);
+							break;
+						case 'Enter':
+							e.preventDefault();
+							if (highlightedIndex !== -1) {
+								handlePresetSelect(filteredPresets[highlightedIndex]);
+							}
+							break;
+						case 'Escape':
+							setShowPresetDropdown(false);
+							setHighlightedIndex(-1);
+							break;
+						default:
+							break;
+					}
+				} else if (showSuggestions) {
+					switch (e.key) {
+						case 'ArrowDown':
+							e.preventDefault();
+							setSelectedSuggestionIndex(prevIndex =>
+								prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
+							);
+							break;
+						case 'Tab':
+							e.preventDefault();
+							if (e.shiftKey) {
+								setSelectedSuggestionIndex(prevIndex =>
+									prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
+								);
+							} else {
+								setSelectedSuggestionIndex(prevIndex =>
+									prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
+								);
+							}
+							break;
+						case 'ArrowUp':
+							e.preventDefault();
+							setSelectedSuggestionIndex(prevIndex =>
+								prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
+							);
+							break;
+						case 'Enter':
+							if (selectedSuggestionIndex !== -1) {
+								e.preventDefault();
+								handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+							}
+							break;
+						case 'Escape':
+							setShowSuggestions(false);
+							setSelectedSuggestionIndex(-1);
+							break;
+						default:
+							break;
+					}
 				}
 			};
 
@@ -1159,6 +1212,51 @@
                 }
             }, [selectedLayers, map]);
 
+			const handleAddressChange = (e) => {
+				const value = e.target.value;
+				setAddress(value);
+				setSelectedSuggestionIndex(-1);
+
+				if (suggestionTimeoutRef.current) {
+					clearTimeout(suggestionTimeoutRef.current);
+				}
+
+				if (value.length > 2) {
+					suggestionTimeoutRef.current = setTimeout(() => {
+						fetchSuggestions(value);
+					}, 300);
+				} else {
+					setSuggestions([]);
+					setShowSuggestions(false);
+				}
+			};
+
+			const fetchSuggestions = async (query) => {
+				try {
+					const response = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+					setSuggestions(response.data.slice(0, 5)); // Limit to 5 suggestions
+					setShowSuggestions(true);
+				} catch (error) {
+					console.error('Error fetching suggestions:', error);
+				}
+			};
+
+			const handleSuggestionClick = (suggestion) => {
+				setAddress(suggestion.display_name);
+				setShowSuggestions(false);
+				if (map) {
+					const { lat, lon, boundingbox } = suggestion;
+					if (boundingbox) {
+						map.fitBounds([
+							[boundingbox[0], boundingbox[2]],
+							[boundingbox[1], boundingbox[3]]
+						]);
+					} else {
+						map.setView([lat, lon], 13);
+					}
+				}
+			};
+
 			const handleAddressSubmit = (e) => {
 				e.preventDefault();
 				if (map && address) {
@@ -1185,6 +1283,20 @@
 						});
 				}
 			};
+
+			React.useEffect(() => {
+				const handleClickOutside = (event) => {
+					if (addressInputRef.current && !addressInputRef.current.contains(event.target) &&
+						suggestionsRef.current && !suggestionsRef.current.contains(event.target)) {
+						setShowSuggestions(false);
+					}
+				};
+
+				document.addEventListener('mousedown', handleClickOutside);
+				return () => {
+					document.removeEventListener('mousedown', handleClickOutside);
+				};
+			}, []);
 			
 			const zoomToLayerExtent = (layerId) => {
 				const layer = treeData[layerId];
@@ -1209,18 +1321,37 @@
 					
 					{/* Address bar */}
 					<div className="absolute top-4 left-1/3 z-[1001] w-1/3">
-						<form onSubmit={handleAddressSubmit} className="flex">
-							<input
-								type="text"
-								value={address}
-								onChange={(e) => setAddress(e.target.value)}
-								placeholder="Enter an address..."
-								className={`flex-grow px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-							/>
-							<button type="submit" className={`px-3 py-2 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white rounded-r-md`}>Go</button>
+						<form onSubmit={handleAddressSubmit} className="flex flex-col">
+							<div className="relative" ref={addressInputRef}>
+								<input
+									type="text"
+									value={address}
+									onChange={handleAddressChange}
+									onKeyDown={handleKeyDown}
+									placeholder="Enter an address..."
+									className={`w-full px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+								/>
+								<button type="submit" className={`absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white rounded-md`}>Go</button>
+							</div>
+							{showSuggestions && suggestions.length > 0 && (
+								<ul ref={suggestionsRef} className={`mt-1 border rounded-md shadow-lg ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}>
+									{suggestions.map((suggestion, index) => (
+										<li
+											key={index}
+											onClick={() => handleSuggestionClick(suggestion)}
+											className={`px-3 py-2 cursor-pointer ${
+												index === selectedSuggestionIndex
+													? (darkMode ? 'bg-gray-600' : 'bg-gray-100')
+													: (darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100')
+											}`}
+										>
+											{suggestion.display_name}
+										</li>
+									))}
+								</ul>
+							)}
 						</form>
 					</div>
-
 					{/* Basemap selector */}
 					<div className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-gray-800 p-2 rounded shadow-md">
 						<select 
