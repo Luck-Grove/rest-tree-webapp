@@ -180,22 +180,40 @@
             const [boundingBox, setBoundingBox] = React.useState(null);
             const [drawControl, setDrawControl] = React.useState(null);
 
-			const handlePresetInputChange = (e) => {
-				const input = e.target.value;
-				setSelectedPreset(input);
-				
-				if (input.length > 0) {
-					const filtered = presets.filter(preset => 
-						preset.name.toLowerCase().includes(input.toLowerCase()) ||
-						preset.url.toLowerCase().includes(input.toLowerCase())
-					);
-					setFilteredPresets(filtered);
-				} else {
-					setFilteredPresets(presets);
-				}
-				setShowPresetDropdown(true);
-				setHighlightedIndex(-1);
-			};
+            const normalizeString = (str) => {
+                return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+            };
+
+            const stateAbbreviations = {
+                'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
+                'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
+                'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+                'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+                'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
+                'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
+                'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+                'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+                'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
+                'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
+            };
+
+            const handlePresetInputChange = (e) => {
+                const input = e.target.value;
+                setSelectedPreset(input);
+                
+                if (input.length > 0) {
+                    const normalizedInput = normalizeString(input);
+                    const filtered = presets.filter(preset => 
+                        normalizeString(preset.name).includes(normalizedInput) ||
+                        normalizeString(preset.url).includes(normalizedInput)
+                    );
+                    setFilteredPresets(filtered);
+                } else {
+                    setFilteredPresets(presets);
+                }
+                setShowPresetDropdown(true);
+                setHighlightedIndex(-1);
+            };
 
 			const handlePresetSelect = (preset) => {
 				setSelectedPreset(preset.name);
@@ -1096,15 +1114,16 @@
             };
 
             const handleSearchChange = (e) => {
-                const searchTerm = e.target.value.toLowerCase();
+                const searchTerm = e.target.value;
                 setSearchTerm(searchTerm);
                 
                 if (searchTerm === '') {
                     setFilteredTreeData(treeData);
                 } else {
+                    const normalizedSearchTerm = normalizeString(searchTerm);
                     const newFilteredData = {};
                     Object.entries(treeData).forEach(([id, node]) => {
-                        if (node.text.toLowerCase().includes(searchTerm)) {
+                        if (normalizeString(node.text).includes(normalizedSearchTerm)) {
                             insertParentChain(id, newFilteredData);
                         }
                     });
