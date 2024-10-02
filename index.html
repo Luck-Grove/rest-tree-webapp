@@ -197,26 +197,27 @@
                 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
             };
 
-            const expandStateAbbreviations = (input) => {
-                const words = input.split(/\s+/);
-                return words.map(word => stateAbbreviations[word.toUpperCase()] || word).join(' ');
-            };
-
             const handlePresetInputChange = (e) => {
                 const input = e.target.value;
                 setSelectedPreset(input);
                 
                 if (input.length > 0) {
-                    const expandedInput = expandStateAbbreviations(input);
-                    const normalizedInput = normalizeString(expandedInput);
+                    let searchTerms = input.split(/\s+/);
+                    let expandedTerms = searchTerms.map(term => {
+                        if (term.length === 2 && term === term.toUpperCase() && stateAbbreviations[term]) {
+                            return stateAbbreviations[term];
+                        }
+                        return term;
+                    });
+                    
+                    const normalizedInput = normalizeString(expandedTerms.join(' '));
+                    
                     const filtered = presets.filter(preset => {
                         const normalizedPresetName = normalizeString(preset.name);
                         const normalizedPresetUrl = normalizeString(preset.url);
                         
-                        // Check if all parts of the normalized input are in the preset name or URL
-                        return normalizedInput.split('').every(char => 
-                            normalizedPresetName.includes(char) || normalizedPresetUrl.includes(char)
-                        );
+                        return normalizedPresetName.includes(normalizedInput) || 
+                               normalizedPresetUrl.includes(normalizedInput);
                     });
                     setFilteredPresets(filtered);
                 } else {
