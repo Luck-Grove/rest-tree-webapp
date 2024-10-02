@@ -1,6 +1,6 @@
 <!DOCTYPE connections>
 <qgsARCGISFEATURESERVERConnections version="1.0">
-    <arcgisfeatureserver name="AEP Pole Database" url="https://services.arcgis.com/eP8V7tJrYd6ZUBkc/arcgis/rest/services/" username="" authcfg="" password="" />
+    <arcgisfeatureserver name="Poles - AEP" url="https://services.arcgis.com/eP8V7tJrYd6ZUBkc/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Alabama - Auburn County GIS" url="https://gis.auburnalabama.org/public/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Alabama - Autauga County GIS" url="https://maps.capturecama.com/arcgis/rest/services/Autauga" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Alabama - Baldwin County GIS" url="https://web5.kcsgis.com/kcsgis/rest/services/Baldwin" username="" authcfg="" password="" />
