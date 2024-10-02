@@ -1252,8 +1252,38 @@
 
 			const fetchSuggestions = async (query) => {
 				try {
-					const response = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-					setSuggestions(response.data.slice(0, 5)); // Limit to 5 suggestions
+					const usResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
+						params: {
+							format: 'json',
+							q: query,
+							limit: 5,
+							countrycodes: 'us',
+						}
+					});
+
+					const globalResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
+						params: {
+							format: 'json',
+							q: query,
+							limit: 5,
+						}
+					});
+
+					const usResults = usResponse.data.map(item => ({ ...item, isUS: true }));
+					const globalResults = globalResponse.data.map(item => ({ ...item, isUS: false }));
+					const combinedResults = [...usResults, ...globalResults];
+
+					const uniqueResults = combinedResults.filter((item, index, self) =>
+						index === self.findIndex((t) => t.place_id === item.place_id)
+					);
+
+					const sortedResults = uniqueResults.sort((a, b) => {
+						if (a.isUS && !b.isUS) return -1;
+						if (!a.isUS && b.isUS) return 1;
+						return b.importance - a.importance;
+					});
+
+					setSuggestions(sortedResults.slice(0, 5)); // Limit to 5 suggestions for display
 					setShowSuggestions(true);
 				} catch (error) {
 					console.error('Error fetching suggestions:', error);
