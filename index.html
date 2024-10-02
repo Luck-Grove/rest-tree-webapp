@@ -1215,18 +1215,26 @@
 									type="text"
 									value={selectedPreset}
 									onChange={handlePresetInputChange}
-									onFocus={() => setShowPresetDropdown(true)}
+									onFocus={handlePresetInputFocus}
+									onKeyDown={handleKeyDown}
 									className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-									placeholder="Type to search presets..."
+									placeholder="Type to search or select a preset..."
 								/>
 							</label>
 							{showPresetDropdown && (
-								<ul className={`absolute z-10 w-full mt-1 max-h-60 overflow-auto rounded-md shadow-lg ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}>
+								<ul 
+									ref={dropdownRef}
+									className={`absolute z-10 w-full mt-1 max-h-60 overflow-auto rounded-md shadow-lg ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}
+								>
 									{filteredPresets.map((preset, index) => (
 										<li
 											key={index}
 											onClick={() => handlePresetSelect(preset)}
-											className={`px-3 py-2 cursor-pointer ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'}`}
+											className={`px-3 py-2 cursor-pointer ${
+												index === highlightedIndex
+													? (darkMode ? 'bg-gray-600' : 'bg-gray-100')
+													: (darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100')
+											}`}
 										>
 											{preset.name}
 										</li>
