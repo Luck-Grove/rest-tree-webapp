@@ -102,16 +102,27 @@
             const [showOnlyActiveLayers, setShowOnlyActiveLayers] = React.useState(false);
             const [visibleNodes, setVisibleNodes] = React.useState(new Set());
 			const [statusMessage, setStatusMessage] = React.useState('');
+			const [filteredPresets, setFilteredPresets] = React.useState([]);
+			const [showPresetDropdown, setShowPresetDropdown] = React.useState(false);
+			const presetInputRef = React.useRef(null);
+
 			
 			const [basemap, setBasemap] = React.useState('default');
 
 			const basemaps = {
 				default: {
 					light: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-					dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+					dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+					maxNativeZoom: 19
 				},
-				esriAerial: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-				googleHybrid: 'http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}'
+				esriAerial: {
+					url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+					maxNativeZoom: 19
+				},
+				googleHybrid: {
+					url: 'http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}',
+					maxNativeZoom: 22
+				}
 			};
 
 			const handleBasemapChange = (e) => {
@@ -124,6 +135,42 @@
 
             const [boundingBox, setBoundingBox] = React.useState(null);
             const [drawControl, setDrawControl] = React.useState(null);
+
+			const handlePresetInputChange = (e) => {
+				const input = e.target.value;
+				setSelectedPreset(input);
+				
+				if (input.length > 0) {
+					const filtered = presets.filter(preset => 
+						preset.name.toLowerCase().includes(input.toLowerCase()) ||
+						preset.url.toLowerCase().includes(input.toLowerCase())
+					);
+					setFilteredPresets(filtered);
+					setShowPresetDropdown(true);
+				} else {
+					setFilteredPresets([]);
+					setShowPresetDropdown(false);
+				}
+			};
+
+			const handlePresetSelect = (preset) => {
+				setSelectedPreset(preset.name);
+				setUrl(preset.url);
+				setShowPresetDropdown(false);
+			};
+
+			React.useEffect(() => {
+				const handleClickOutside = (event) => {
+					if (presetInputRef.current && !presetInputRef.current.contains(event.target)) {
+						setShowPresetDropdown(false);
+					}
+				};
+
+				document.addEventListener('mousedown', handleClickOutside);
+				return () => {
+					document.removeEventListener('mousedown', handleClickOutside);
+				};
+			}, []);
 
             React.useEffect(() => {
                 // Load map position and zoom from cookie
@@ -140,7 +187,11 @@
                 const mapInstance = L.map('map', {
                     center: initialView,
                     zoom: initialZoom,
-                    zoomControl: false
+                    zoomControl: false,
+					zoomSnap: 0.1,
+					zoomDelta: 0.5,
+					maxZoom: 23,
+					wheelPxPerZoomLevel: 100
                 });
                 L.control.zoom({ position: 'topright' }).addTo(mapInstance);
                 setMap(mapInstance);
@@ -185,7 +236,7 @@
                 }, '');
             };
 
-            React.useEffect(() => {
+			React.useEffect(() => {
 				if (map) {
 					map.eachLayer(layer => {
 						if (layer instanceof L.TileLayer) {
@@ -193,53 +244,59 @@
 						}
 					});
 
-					let tileUrl = basemap === 'default' 
+					let tileUrl = basemap === 'default'
 						? (darkMode ? basemaps.default.dark : basemaps.default.light)
-						: basemaps[basemap];
+						: basemaps[basemap].url;
+
+					let maxNativeZoom = basemap === 'default'
+						? basemaps.default.maxNativeZoom
+						: basemaps[basemap].maxNativeZoom;
 
 					L.tileLayer(tileUrl, {
-						attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+						attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+						maxZoom: 23,
+						maxNativeZoom: maxNativeZoom
 					}).addTo(map);
 
-                    // Add draw control for bounding box
-                    const drawControlInstance = new L.Control.Draw({
-                        position: 'topright',
-                        draw: {
-                            polyline: false,
-                            polygon: false,
-                            circle: false,
-                            marker: false,
-                            circlemarker: false,
-                            rectangle: {
-                                shapeOptions: {
-                                    color: '#3388ff'
-                                }
-                            }
-                        },
-                        edit: {
-                            featureGroup: new L.FeatureGroup(),
-                            remove: true
-                        }
-                    });
-                    map.addControl(drawControlInstance);
-                    setDrawControl(drawControlInstance);
+					// Add draw control for bounding box
+					const drawControlInstance = new L.Control.Draw({
+						position: 'topright',
+						draw: {
+							polyline: false,
+							polygon: false,
+							circle: false,
+							marker: false,
+							circlemarker: false,
+							rectangle: {
+								shapeOptions: {
+									color: '#3388ff'
+								}
+							}
+						},
+						edit: {
+							featureGroup: new L.FeatureGroup(),
+							remove: true
+						}
+					});
+					map.addControl(drawControlInstance);
+					setDrawControl(drawControlInstance);
 
-                    // Event listener for draw:created
-                    map.on(L.Draw.Event.CREATED, (e) => {
-                        if (e.layerType === 'rectangle') {
-                            if (boundingBox) {
-                                map.removeLayer(boundingBox);
-                            }
-                            map.addLayer(e.layer);
-                            setBoundingBox(e.layer);
-                        }
-                    });
+					// Event listener for draw:created
+					map.on(L.Draw.Event.CREATED, (e) => {
+						if (e.layerType === 'rectangle') {
+							if (boundingBox) {
+								map.removeLayer(boundingBox);
+							}
+							map.addLayer(e.layer);
+							setBoundingBox(e.layer);
+						}
+					});
 
-                    return () => {
-                        map.removeControl(drawControlInstance);
-                    };
-                }
-            }, [map, darkMode, basemap]);
+					return () => {
+						map.removeControl(drawControlInstance);
+					};
+				}
+			}, [map, darkMode, basemap]);
 
 			React.useEffect(() => {
 				const lastBasemap = document.cookie.split('; ').find(row => row.startsWith('basemap='));
@@ -1098,22 +1155,31 @@
 								{darkMode ? 'Light' : 'Dark'}
 							</button>
 						</div>
-						<div className="mb-4">
+						<div className="mb-4 relative" ref={presetInputRef}>
 							<label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-								Select a preset:
-								<select
+								Select or search for a preset:
+								<input
+									type="text"
 									value={selectedPreset}
-									onChange={handlePresetChange}
+									onChange={handlePresetInputChange}
+									onFocus={() => setShowPresetDropdown(true)}
 									className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-								>
-									<option value="">-- Select a preset --</option>
-									{presets.map((preset, index) => (
-										<option key={index} value={preset.url}>
-											{preset.name}
-										</option>
-									))}
-								</select>
+									placeholder="Type to search presets..."
+								/>
 							</label>
+							{showPresetDropdown && (
+								<ul className={`absolute z-10 w-full mt-1 max-h-60 overflow-auto rounded-md shadow-lg ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}>
+									{filteredPresets.map((preset, index) => (
+										<li
+											key={index}
+											onClick={() => handlePresetSelect(preset)}
+											className={`px-3 py-2 cursor-pointer ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'}`}
+										>
+											{preset.name}
+										</li>
+									))}
+								</ul>
+							)}
 						</div>
 						<div className="mb-4">
 							<label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
