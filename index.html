@@ -104,9 +104,10 @@
 			const [statusMessage, setStatusMessage] = React.useState('');
 			const [filteredPresets, setFilteredPresets] = React.useState([]);
 			const [showPresetDropdown, setShowPresetDropdown] = React.useState(false);
+			const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
 			const presetInputRef = React.useRef(null);
+			const dropdownRef = React.useRef(null);
 
-			
 			const [basemap, setBasemap] = React.useState('default');
 
 			const basemaps = {
@@ -146,23 +147,75 @@
 						preset.url.toLowerCase().includes(input.toLowerCase())
 					);
 					setFilteredPresets(filtered);
-					setShowPresetDropdown(true);
 				} else {
-					setFilteredPresets([]);
-					setShowPresetDropdown(false);
+					setFilteredPresets(presets);
 				}
+				setShowPresetDropdown(true);
+				setHighlightedIndex(-1);
 			};
 
 			const handlePresetSelect = (preset) => {
 				setSelectedPreset(preset.name);
 				setUrl(preset.url);
 				setShowPresetDropdown(false);
+				setHighlightedIndex(-1);
 			};
+
+			const handlePresetInputFocus = () => {
+				setFilteredPresets(presets);
+				setShowPresetDropdown(true);
+				setHighlightedIndex(-1);
+			};
+
+			const handleKeyDown = (e) => {
+				if (!showPresetDropdown) return;
+
+				switch (e.key) {
+					case 'ArrowDown':
+						e.preventDefault();
+						setHighlightedIndex(prevIndex => 
+							prevIndex < filteredPresets.length - 1 ? prevIndex + 1 : prevIndex
+						);
+						break;
+					case 'ArrowUp':
+						e.preventDefault();
+						setHighlightedIndex(prevIndex => (prevIndex > 0 ? prevIndex - 1 : 0));
+						break;
+					case 'Enter':
+						e.preventDefault();
+						if (highlightedIndex !== -1) {
+							handlePresetSelect(filteredPresets[highlightedIndex]);
+						}
+						break;
+					case 'Tab':
+						if (highlightedIndex !== -1) {
+							e.preventDefault();
+							handlePresetSelect(filteredPresets[highlightedIndex]);
+						}
+						break;
+					case 'Escape':
+						setShowPresetDropdown(false);
+						setHighlightedIndex(-1);
+						break;
+					default:
+						break;
+				}
+			};
+
+			React.useEffect(() => {
+				if (highlightedIndex !== -1 && dropdownRef.current) {
+					const highlightedElement = dropdownRef.current.children[highlightedIndex];
+					if (highlightedElement) {
+						highlightedElement.scrollIntoView({ block: 'nearest' });
+					}
+				}
+			}, [highlightedIndex]);
 
 			React.useEffect(() => {
 				const handleClickOutside = (event) => {
 					if (presetInputRef.current && !presetInputRef.current.contains(event.target)) {
 						setShowPresetDropdown(false);
+						setHighlightedIndex(-1);
 					}
 				};
 
