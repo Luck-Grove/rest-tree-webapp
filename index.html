@@ -202,23 +202,20 @@
                 setSelectedPreset(input);
                 
                 if (input.length > 0) {
-                    let searchTerms = input.split(/\s+/);
-                    let expandedTerms = searchTerms.map(term => {
-                        if (term.length === 2 && term === term.toUpperCase() && stateAbbreviations[term]) {
-                            return stateAbbreviations[term];
+                    const words = input.split(/\s+/);
+                    const expandedWords = words.map(word => {
+                        if (word.length === 2 && word === word.toUpperCase() && stateAbbreviations[word]) {
+                            return stateAbbreviations[word];
                         }
-                        return term;
+                        return word;
                     });
+                    const expandedInput = expandedWords.join(' ');
+                    const normalizedInput = normalizeString(expandedInput);
                     
-                    const normalizedInput = normalizeString(expandedTerms.join(' '));
-                    
-                    const filtered = presets.filter(preset => {
-                        const normalizedPresetName = normalizeString(preset.name);
-                        const normalizedPresetUrl = normalizeString(preset.url);
-                        
-                        return normalizedPresetName.includes(normalizedInput) || 
-                               normalizedPresetUrl.includes(normalizedInput);
-                    });
+                    const filtered = presets.filter(preset => 
+                        normalizeString(preset.name).includes(normalizedInput) ||
+                        normalizeString(preset.url).includes(normalizedInput)
+                    );
                     setFilteredPresets(filtered);
                 } else {
                     setFilteredPresets(presets);
