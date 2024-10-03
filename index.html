@@ -107,6 +107,7 @@
         .dark * {
             scrollbar-color: #555 transparent;
         }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -122,6 +123,17 @@
             animation: spin 1s ease-in-out infinite;
             margin-left: 8px;
         }
+
+		.message-loading-swirl {
+			border: 4px solid rgba(0, 0, 0, 0.2);
+			border-top-color: #333333;
+			border-radius: 50%;
+			width: 24px;
+			height: 24px;
+			animation: spin 1s ease-in-out infinite;
+			flex-shrink: 0;
+		}
+
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -859,7 +871,7 @@
 
 						while (hasMore) {
 							let downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
-							
+
 							// Add bounding box filter if present
 							if (boundingBox) {
 								const bounds = boundingBox.getBounds();
@@ -883,15 +895,21 @@
 
 						if (allFeatures.length === 0) {
 							setStatusMessage('No features found within the bounding box.');
+							setIsDownloading(false);
 							return;
 						}
 
+						// Update status message before flattening geometries
+						setStatusMessage('Flattening geometries...');
+
 						// Validate, explode multi-geometries, and flatten features
 						const flattenedFeatures = [];
-						allFeatures.forEach(feature => {
+						const totalFeatures = allFeatures.length;
+						for (let i = 0; i < totalFeatures; i++) {
+							const feature = allFeatures[i];
 							if (!feature.geometry || !feature.geometry.type) {
 								console.warn('Skipping feature with invalid geometry:', feature);
-								return;
+								continue;
 							}
 
 							const geomType = feature.geometry.type;
@@ -915,7 +933,14 @@
 								// Single geometry, add as is
 								flattenedFeatures.push(feature);
 							}
-						});
+						}
+
+						// Calculate compression level based on the number of features
+						const compressionLevel = getCompressionLevel(flattenedFeatures.length);
+						console.log(`Compression level set to ${compressionLevel} based on ${flattenedFeatures.length} features.`);
+
+						// Update status message before grouping features
+						setStatusMessage('Grouping features by geometry type...');
 
 						// Group features by geometry type
 						const featuresByType = {};
@@ -976,8 +1001,12 @@
 
 						// Convert GeoJSON to Shapefile(s)
 						const zip = new JSZip();
-						for (const geomType in featuresByType) {
+						const geomTypes = Object.keys(featuresByType);
+						for (let i = 0; i < geomTypes.length; i++) {
+							const geomType = geomTypes[i];
 							const features = featuresByType[geomType];
+
+							setStatusMessage(`Processing ${geomType} features (${i + 1} of ${geomTypes.length})...`);
 
 							fixFieldNames(features);
 
@@ -1011,8 +1040,8 @@
 									// Convert base64 string to ArrayBuffer
 									const binaryString = window.atob(content);
 									const bytes = new Uint8Array(binaryString.length);
-									for (let i = 0; i < binaryString.length; i++) {
-										bytes[i] = binaryString.charCodeAt(i);
+									for (let j = 0; j < binaryString.length; j++) {
+										bytes[j] = binaryString.charCodeAt(j);
 									}
 									const arrayBuffer = bytes.buffer;
 
@@ -1029,14 +1058,14 @@
 
 										// If multiple geometry types, include geometry type in file name
 										let newFileName = '';
-										if (Object.keys(featuresByType).length > 1) {
+										if (geomTypes.length > 1) {
 											newFileName = `${baseFileName}_${geomType.toLowerCase()}.${ext}`;
 										} else {
 											newFileName = `${baseFileName}.${ext}`;
 										}
 
-										// Add file to the zip at root
-										zip.file(newFileName, fileContent);
+										// Add file to the zip at root with dynamic compression level
+										zip.file(newFileName, fileContent, { compression: "DEFLATE", compressionOptions: { level: compressionLevel } });
 									}
 
 								} catch (zipError) {
@@ -1048,23 +1077,59 @@
 							}
 						}
 
-						// Generate the final ZIP file
-						const finalZipContent = await zip.generateAsync({ type: "blob" });
+						// Generate the final ZIP file with dynamic compression level
+						setStatusMessage('Compressing files...');
+						const finalZipContent = await zip.generateAsync(
+							{ 
+								type: "blob", 
+								compression: "DEFLATE", 
+								compressionOptions: { level: compressionLevel } 
+							}
+						);
 
 						const zipFileName = baseFileName + '.zip';
 						saveAs(finalZipContent, zipFileName);
+
 						setStatusMessage(`Shapefile download completed for ${node.text}. Total features included: ${flattenedFeatures.length}.`);
+
+						// Reset isDownloading to false since download is complete
+						setIsDownloading(false);
+
 					} else {
 						setStatusMessage('This layer does not support querying features.');
+						setIsDownloading(false);
 					}
 				} catch (error) {
 					console.error('Error in shapefile generation:', error);
 					setStatusMessage(`Error downloading Shapefile: ${error.message}`);
+					setIsDownloading(false);
 				} finally {
 					setTimeout(() => {
-						setIsDownloading(false);
 						setStatusMessage('');
 					}, 5000);
+				}
+			};
+
+			// Compression level function
+			const getCompressionLevel = (featureCount) => {
+				if (featureCount > 50000) {
+					return 1;
+				} else if (featureCount > 20000) {
+					return 1;
+				} else if (featureCount > 10000) {
+					return 2;
+				} else if (featureCount > 5000) {
+					return 3;
+				} else if (featureCount > 2500) {
+					return 4;
+				} else if (featureCount > 1000) {
+					return 4;
+				} else if (featureCount > 500) {
+					return 5;
+				} else if (featureCount > 100) {
+					return 5;
+				} else {
+					return 6;
 				}
 			};
 			
@@ -1711,18 +1776,21 @@
                                 Bounding box set. Downloads will be filtered to the highlighted area.
                             </div>
                         )}
-
+						
 						{/* Unified status area for errors, tips, and download status */}
 						{(error || statusMessage) && (
-							<div className={`mt-4 p-3 rounded-md text-sm ${
+							<div className={`mt-4 p-3 rounded-md text-sm flex items-center ${
 								error ? 'bg-red-100 text-red-500' : 
 								isDownloading ? 'bg-blue-100 text-blue-500' : 
 								'bg-green-100 text-green-500'
 							}`}>
-								{error || statusMessage}
+								{isDownloading && (
+									<div className="message-loading-swirl mr-2"></div>
+								)}
+								<span>{error || statusMessage}</span>
 							</div>
 						)}
-						
+
 						<div className={`tree-container mt-4 border p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} overflow-auto`} style={{maxHeight: 'calc(100vh - 26rem)'}}>
 							{rootNodes}
 							{renderContextMenu()}
