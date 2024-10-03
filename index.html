@@ -869,7 +869,7 @@
 
 							const geojsonResponse = await fetch(downloadUrl);
 							const geojsonData = await geojsonResponse.json();
-							
+
 							if (geojsonData.features && geojsonData.features.length > 0) {
 								allFeatures = allFeatures.concat(geojsonData.features);
 								offset += geojsonData.features.length;
@@ -886,70 +886,174 @@
 							return;
 						}
 
-						const geojson = {
-							type: "FeatureCollection",
-							features: allFeatures
-						};
-
-						// Convert GeoJSON to Shapefile
-						const options = {
-							types: {
-								point: 'points',
-								polygon: 'polygons',
-								line: 'lines'
+						// Validate, explode multi-geometries, and flatten features
+						const flattenedFeatures = [];
+						allFeatures.forEach(feature => {
+							if (!feature.geometry || !feature.geometry.type) {
+								console.warn('Skipping feature with invalid geometry:', feature);
+								return;
 							}
-						};
 
-						if (typeof window.shpwrite !== 'undefined' && typeof window.shpwrite.zip === 'function') {
-							setStatusMessage('Generating Shapefile...');
-							
-							try {
-								const content = await window.shpwrite.zip(geojson, options);
-								
-								console.log('ZIP content type:', Object.prototype.toString.call(content));
-								console.log('ZIP content length:', content.length);
+							const geomType = feature.geometry.type;
+							const properties = feature.properties || {};
 
-								// Convert base64 string to ArrayBuffer
-								const binaryString = window.atob(content);
-								const bytes = new Uint8Array(binaryString.length);
-								for (let i = 0; i < binaryString.length; i++) {
-									bytes[i] = binaryString.charCodeAt(i);
-								}
-								const arrayBuffer = bytes.buffer;
-
-								// Create a new JSZip instance
-								const zip = new JSZip();
-
-								// Load the content into JSZip
-								await zip.loadAsync(arrayBuffer);
-
-								// Get the name of the subfolder
-								const subfolderName = Object.keys(zip.files)[0].split('/')[0];
-
-								// Create a new ZIP with files at the root
-								const newZip = new JSZip();
-								for (let fileName in zip.files) {
-									if (zip.files[fileName].dir) continue;
-									const newFileName = fileName.replace(subfolderName + '/', '');
-									const content = await zip.file(fileName).async('uint8array');
-									newZip.file(newFileName, content);
-								}
-
-								// Generate the final ZIP file
-								const finalZipContent = await newZip.generateAsync({type: "blob"});
-
-								console.log('Final Blob size:', finalZipContent.size);
-
-								const zipFileName = node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.zip';
-								saveAs(finalZipContent, zipFileName);
-								setStatusMessage(`Shapefile download completed for ${node.text}. ${allFeatures.length} features included.`);
-							} catch (zipError) {
-								console.error('Error in ZIP generation:', zipError);
-								throw new Error('Error generating Shapefile: ' + zipError.message);
+							if (geomType.startsWith('Multi')) {
+								// Explode multi-geometries
+								const simpleType = geomType.replace('Multi', '');
+								feature.geometry.coordinates.forEach(coords => {
+									const newFeature = {
+										type: 'Feature',
+										properties: properties,
+										geometry: {
+											type: simpleType,
+											coordinates: coords
+										}
+									};
+									flattenedFeatures.push(newFeature);
+								});
+							} else {
+								// Single geometry, add as is
+								flattenedFeatures.push(feature);
 							}
-						} else {
-							throw new Error('shpwrite library is not properly loaded or zip method is not available.');
+						});
+
+						// Group features by geometry type
+						const featuresByType = {};
+						flattenedFeatures.forEach(feature => {
+							const geomType = feature.geometry.type;
+							if (!featuresByType[geomType]) {
+								featuresByType[geomType] = [];
+							}
+							featuresByType[geomType].push(feature);
+						});
+
+						// Generate base file name from layer name and ID
+						const match = node.text.match(/^(.*)\s*\(ID:\s*(\d+)\)$/);
+						let layerName = node.text;
+						let layerID = '';
+						if (match) {
+							layerName = match[1].trim();
+							layerID = match[2];
 						}
+						const baseFileName = `${layerName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${layerID}`;
+
+						// Fix field names in GeoJSON to ensure unique truncated field names
+						const fixFieldNames = (features) => {
+							const fieldNameMap = {}; // Original name to truncated name
+							const usedNames = new Set(); // To keep track of used truncated names
+
+							// Collect all field names
+							features.forEach(feature => {
+								for (let fieldName in feature.properties) {
+									if (!fieldNameMap[fieldName]) {
+										// Truncate to 10 characters
+										let truncated = fieldName.substring(0, 10);
+										// Ensure uniqueness
+										let uniqueName = truncated;
+										let counter = 1;
+										while (usedNames.has(uniqueName.toUpperCase())) { // Shapefile field names are case-insensitive
+											// Generate a new name
+											let suffix = '' + counter;
+											uniqueName = truncated.substring(0, 10 - suffix.length) + suffix;
+											counter++;
+										}
+										usedNames.add(uniqueName.toUpperCase());
+										fieldNameMap[fieldName] = uniqueName;
+									}
+								}
+							});
+
+							// Now, update the properties in the features
+							features.forEach(feature => {
+								const newProperties = {};
+								for (let fieldName in feature.properties) {
+									let newFieldName = fieldNameMap[fieldName];
+									newProperties[newFieldName] = feature.properties[fieldName];
+								}
+								feature.properties = newProperties;
+							});
+						};
+
+						// Convert GeoJSON to Shapefile(s)
+						const zip = new JSZip();
+						for (const geomType in featuresByType) {
+							const features = featuresByType[geomType];
+
+							fixFieldNames(features);
+
+							const geojson = {
+								type: "FeatureCollection",
+								features: features
+							};
+
+							const options = {
+								types: {}
+							};
+
+							// Map geometry types to shpwrite types
+							if (geomType === 'Point') {
+								options.types.point = 'Point';
+							} else if (geomType === 'LineString') {
+								options.types.line = 'LineString';
+							} else if (geomType === 'Polygon') {
+								options.types.polygon = 'Polygon';
+							} else {
+								console.warn(`Unsupported geometry type: ${geomType}`);
+								continue;
+							}
+
+							if (typeof window.shpwrite !== 'undefined' && typeof window.shpwrite.zip === 'function') {
+								setStatusMessage(`Generating Shapefile for ${geomType}...`);
+
+								try {
+									const content = await window.shpwrite.zip(geojson, options);
+
+									// Convert base64 string to ArrayBuffer
+									const binaryString = window.atob(content);
+									const bytes = new Uint8Array(binaryString.length);
+									for (let i = 0; i < binaryString.length; i++) {
+										bytes[i] = binaryString.charCodeAt(i);
+									}
+									const arrayBuffer = bytes.buffer;
+
+									// Load the content into JSZip
+									const geomZip = await JSZip.loadAsync(arrayBuffer);
+
+									// Merge into the main zip
+									for (let fileName in geomZip.files) {
+										const fileContent = await geomZip.files[fileName].async('uint8array');
+
+										// Construct new file name
+										// Extract the extension
+										const ext = fileName.split('.').pop();
+
+										// If multiple geometry types, include geometry type in file name
+										let newFileName = '';
+										if (Object.keys(featuresByType).length > 1) {
+											newFileName = `${baseFileName}_${geomType.toLowerCase()}.${ext}`;
+										} else {
+											newFileName = `${baseFileName}.${ext}`;
+										}
+
+										// Add file to the zip at root
+										zip.file(newFileName, fileContent);
+									}
+
+								} catch (zipError) {
+									console.error(`Error generating Shapefile for ${geomType}:`, zipError);
+									throw new Error(`Error generating Shapefile for ${geomType}: ${zipError.message}`);
+								}
+							} else {
+								throw new Error('shpwrite library is not properly loaded or zip method is not available.');
+							}
+						}
+
+						// Generate the final ZIP file
+						const finalZipContent = await zip.generateAsync({ type: "blob" });
+
+						const zipFileName = baseFileName + '.zip';
+						saveAs(finalZipContent, zipFileName);
+						setStatusMessage(`Shapefile download completed for ${node.text}. Total features included: ${flattenedFeatures.length}.`);
 					} else {
 						setStatusMessage('This layer does not support querying features.');
 					}
