@@ -458,30 +458,43 @@
 							circlemarker: false,
 							rectangle: {
 								shapeOptions: {
-									color: '#3388ff'
+									color: 'red',
+									weight: 2,
+									fillColor: 'red',
+									className: 'bounding-box-rectangle'
 								}
 							}
 						},
-						edit: {
-							featureGroup: new L.FeatureGroup(),
-							remove: true
-						}
+						edit: false
 					});
 					map.addControl(drawControlInstance);
 					setDrawControl(drawControlInstance);
 
-					// Event listener for draw:created
+					// Event listener for when the rectangle draw button is clicked
+					map.on('draw:drawstart', (e) => {
+						if (e.layerType === 'rectangle') {
+							// Remove all existing rectangles
+							map.eachLayer((layer) => {
+								if (layer instanceof L.Rectangle) {
+									map.removeLayer(layer);
+								}
+							});
+							setBoundingBox(null);
+						}
+					});
+
+					// Event listener for when a rectangle is created
 					map.on(L.Draw.Event.CREATED, (e) => {
 						if (e.layerType === 'rectangle') {
-							if (boundingBox) {
-								map.removeLayer(boundingBox);
-							}
-							map.addLayer(e.layer);
-							setBoundingBox(e.layer);
+							const newBoundingBox = e.layer;
+							map.addLayer(newBoundingBox);
+							setBoundingBox(newBoundingBox);
 						}
 					});
 
 					return () => {
+						map.off('draw:drawstart');
+						map.off(L.Draw.Event.CREATED);
 						map.removeControl(drawControlInstance);
 					};
 				}
@@ -1569,7 +1582,7 @@
                         {/* Bounding box info */}
                         {boundingBox && (
                             <div className="mt-4 p-2 bg-blue-100 text-blue-800 rounded-md">
-                                Bounding box set. Downloads will be filtered to this area.
+                                Bounding box set. Downloads will be filtered to the highlighted area.
                             </div>
                         )}
 
