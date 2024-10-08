@@ -56,6 +56,7 @@ const ArcGISRESTTreeMap = () => {
 	const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, nodeId: null });
     const lastContextMenuTrigger = useRef(null);
     const sidePanelRef = useRef(null);
+    const [isMapReady, setIsMapReady] = useState(false);
 
     useEffect(() => {
         fetchXMLPresets().then(setPresets).catch(error => {
@@ -126,14 +127,18 @@ const ArcGISRESTTreeMap = () => {
             }
         });
 
+        mapInstance.whenReady(() => {
+            setIsMapReady(true);
+        });
+    
         return () => mapInstance.remove();
     }, [basemap, darkMode]);
 
     useEffect(() => {
-        if (map) {
+        if (map && isMapReady) {
             updateMapLayers(map, selectedLayers, treeData, darkMode);
         }
-    }, [selectedLayers, map, darkMode, treeData]);
+    }, [selectedLayers, map, darkMode, treeData, isMapReady]);
 
     useEffect(() => {
         const savedDarkMode = getCookie('darkMode');
@@ -401,7 +406,10 @@ const ArcGISRESTTreeMap = () => {
     const toggleDarkMode = () => {
         setDarkMode((prevDarkMode) => {
             const newDarkMode = !prevDarkMode;
-            setCookie('darkMode', newDarkMode, 365); // Save for 1 year
+            setCookie('darkMode', newDarkMode, 365);
+            if (map && isMapReady) {
+                updateBasemap(map, basemap, newDarkMode);
+            }
             return newDarkMode;
         });
     };

@@ -53,39 +53,75 @@ export const initializeMap = (mapId, darkMode) => {
 };
 
 export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
-    map.eachLayer(layer => {
-        if (layer instanceof L.TileLayer) return; // Keep the base map
-        map.removeLayer(layer);
-    });
+    if (!map || !map.getZoom) {
+        console.warn('Map is not initialized properly');
+        return;
+    }
 
-    selectedLayers.forEach(layerId => {
-        const layer = treeData[layerId];
-        if (layer && layer.url) {
-            const featureLayer = EsriLeaflet.featureLayer({
-                url: layer.url
-            }).addTo(map);
+    const existingLayers = new Map();
 
-            featureLayer.on('click', function(e) {
-                const popupContent = '<div class="custom-popup ' + (darkMode ? 'dark' : 'light') + '">' + 
-                    Object.entries(e.layer.feature.properties)
-                        .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
-                        .join('<br>') + 
-                    '</div>';
+    try {
+        // Identify existing layers
+        map.eachLayer(layer => {
+            if (layer instanceof L.TileLayer) return; // Keep the base map
+            if (layer._url) {
+                existingLayers.set(layer._url, layer);
+            }
+        });
 
-                L.popup({
-                    offset: L.point(0, -5),
-                    maxHeight: 300,
-                    maxWidth: 300,
-                    className: darkMode ? 'dark-popup' : 'light-popup',
-                    autoPan: false
-                })
-                    .setLatLng(e.latlng)
-                    .setContent(popupContent)
-                    .openOn(map);
-            });
-        }
+        // Remove unselected layers
+        existingLayers.forEach((layer, url) => {
+            if (!Array.from(selectedLayers).some(layerId => treeData[layerId]?.url === url)) {
+                map.removeLayer(layer);
+                existingLayers.delete(url);
+            }
+        });
+
+        // Add new layers or update existing ones
+        selectedLayers.forEach(layerId => {
+            const layer = treeData[layerId];
+            if (layer && layer.url) {
+                if (!existingLayers.has(layer.url)) {
+                    const featureLayer = EsriLeaflet.featureLayer({
+                        url: layer.url
+                    }).addTo(map);
+
+                    addClickEventToLayer(featureLayer, map, darkMode);
+                    existingLayers.set(layer.url, featureLayer);
+                } else {
+                    // Update existing layer's popup style
+                    const existingLayer = existingLayers.get(layer.url);
+                    existingLayer.off('click');
+                    addClickEventToLayer(existingLayer, map, darkMode);
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error updating map layers:', error);
+    }
+};
+
+const addClickEventToLayer = (layer, map, darkMode) => {
+    layer.on('click', function(e) {
+        const popupContent = '<div class="custom-popup ' + (darkMode ? 'dark' : 'light') + '">' +
+            Object.entries(e.layer.feature.properties)
+                .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                .join('<br>') +
+            '</div>';
+
+        L.popup({
+            offset: L.point(0, -5),
+            maxHeight: 300,
+            maxWidth: 300,
+            className: darkMode ? 'dark-popup' : 'light-popup',
+            autoPan: false
+        })
+            .setLatLng(e.latlng)
+            .setContent(popupContent)
+            .openOn(map);
     });
 };
+
 
 export const updateBasemap = (map, basemap, darkMode) => {
     map.eachLayer(layer => {
