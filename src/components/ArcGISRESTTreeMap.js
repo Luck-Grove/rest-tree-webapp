@@ -136,9 +136,9 @@ const ArcGISRESTTreeMap = () => {
 
     useEffect(() => {
         if (map && isMapReady) {
-            updateMapLayers(map, selectedLayers, treeData, darkMode);
+          updateMapLayers(map, selectedLayers, treeData, darkMode);
         }
-    }, [selectedLayers, map, darkMode, treeData, isMapReady]);
+      }, [selectedLayers, map, darkMode, treeData, isMapReady]);
 
     useEffect(() => {
         const savedDarkMode = getCookie('darkMode');

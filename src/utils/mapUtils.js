@@ -1,6 +1,8 @@
 import L from 'leaflet';
 import * as EsriLeaflet from 'esri-leaflet';
 
+const managedLayers = new Map();
+
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
@@ -58,44 +60,31 @@ export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
         return;
     }
 
-    const existingLayers = new Map();
 
     try {
-        // Identify existing layers
-        map.eachLayer(layer => {
-            if (layer instanceof L.TileLayer) return; // Keep the base map
-            if (layer._url) {
-                existingLayers.set(layer._url, layer);
-            }
-        });
-
-        // Remove unselected layers
-        existingLayers.forEach((layer, url) => {
-            if (!Array.from(selectedLayers).some(layerId => treeData[layerId]?.url === url)) {
+        managedLayers.forEach((layer, layerId) => {
+            if (!selectedLayers.has(layerId)) {
                 map.removeLayer(layer);
-                existingLayers.delete(url);
+                managedLayers.delete(layerId);
             }
         });
 
-        // Add new layers or update existing ones
+        // Add new selected layers
         selectedLayers.forEach(layerId => {
-            const layer = treeData[layerId];
-            if (layer && layer.url) {
-                if (!existingLayers.has(layer.url)) {
+            if (!managedLayers.has(layerId)) {
+                const layer = treeData[layerId];
+                if (layer && layer.url) {
                     const featureLayer = EsriLeaflet.featureLayer({
-                        url: layer.url
+                        url: layer.url,
+                        cacheLayers: false,
+                        where: '1=1'
                     }).addTo(map);
-
                     addClickEventToLayer(featureLayer, map, darkMode);
-                    existingLayers.set(layer.url, featureLayer);
-                } else {
-                    // Update existing layer's popup style
-                    const existingLayer = existingLayers.get(layer.url);
-                    existingLayer.off('click');
-                    addClickEventToLayer(existingLayer, map, darkMode);
+                    managedLayers.set(layerId, featureLayer);
                 }
             }
         });
+
     } catch (error) {
         console.error('Error updating map layers:', error);
     }
