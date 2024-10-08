@@ -60,31 +60,34 @@ export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
         return;
     }
 
-
     try {
-        managedLayers.forEach((layer, layerId) => {
-            if (!selectedLayers.has(layerId)) {
+        // Remove all non-base layers
+        map.eachLayer(layer => {
+            if (!(layer instanceof L.TileLayer)) {
                 map.removeLayer(layer);
-                managedLayers.delete(layerId);
             }
         });
 
-        // Add new selected layers
+        // Clear our managed layers
+        managedLayers.forEach(layer => {
+            if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+            }
+        });
+        managedLayers.clear();
+
+        // Add selected layers
         selectedLayers.forEach(layerId => {
-            if (!managedLayers.has(layerId)) {
-                const layer = treeData[layerId];
-                if (layer && layer.url) {
-                    const featureLayer = EsriLeaflet.featureLayer({
-                        url: layer.url,
-                        cacheLayers: false,
-                        where: '1=1'
-                    }).addTo(map);
-                    addClickEventToLayer(featureLayer, map, darkMode);
-                    managedLayers.set(layerId, featureLayer);
-                }
-            }
+            const layer = treeData[layerId];
+            if (layer && layer.url) {
+                const featureLayer = EsriLeaflet.featureLayer({
+                    url: layer.url,
+                    cacheLayers: false,
+                    where: '1=1'
+                }).addTo(map);
+                addClickEventToLayer(featureLayer, map, darkMode);
+                managedLayers.set(layerId, featureLayer);            }
         });
-
     } catch (error) {
         console.error('Error updating map layers:', error);
     }
