@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/rest-tree-webapp/static/css/main.e384510f.css",
-    "main.js": "/rest-tree-webapp/static/js/main.656474ad.js",
+    "main.js": "/rest-tree-webapp/static/js/main.cf985950.js",
     "static/js/453.6e4d7dd6.chunk.js": "/rest-tree-webapp/static/js/453.6e4d7dd6.chunk.js",
     "static/media/spritesheet.svg": "/rest-tree-webapp/static/media/spritesheet.a4e0eb7ad904a4858361.svg",
     "index.html": "/rest-tree-webapp/index.html",
     "main.e384510f.css.map": "/rest-tree-webapp/static/css/main.e384510f.css.map",
-    "main.656474ad.js.map": "/rest-tree-webapp/static/js/main.656474ad.js.map",
+    "main.cf985950.js.map": "/rest-tree-webapp/static/js/main.cf985950.js.map",
     "453.6e4d7dd6.chunk.js.map": "/rest-tree-webapp/static/js/453.6e4d7dd6.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.e384510f.css",
-    "static/js/main.656474ad.js"
+    "static/js/main.cf985950.js"
   ]
 }
