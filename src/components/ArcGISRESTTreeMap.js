@@ -48,7 +48,6 @@ const ArcGISRESTTreeMap = () => {
     const [boundingBox, setBoundingBox] = useState(null);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
 
-    const consoleRef = useRef(null);
     const suggestionTimeoutRef = useRef(null);
     const suggestionsRef = useRef(null);
     const presetInputRef = useRef(null);
@@ -64,12 +63,6 @@ const ArcGISRESTTreeMap = () => {
             addConsoleMessage(`Error loading XML presets: ${error.message}`);
         });
     }, []);
-
-    useEffect(() => {
-        if (consoleRef.current) {
-            consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
-        }
-    }, [consoleMessages]);
 
     useEffect(() => {
         setFilteredTreeData(treeData);
@@ -481,18 +474,18 @@ const ArcGISRESTTreeMap = () => {
 
     const renderSidePanel = () => {
         return (
-            <div ref={sidePanelRef} className={`floating-panel p-4 ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'}`}>
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-xl font-bold">AGS Multitool</h1>
+            <div ref={sidePanelRef} className={`floating-panel p-3 ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'}`}>
+                <div className="flex justify-between items-center mb-3">
+                    <h1 className="text-lg font-bold">AGS Multitool</h1>
                     <button 
                         onClick={toggleDarkMode} 
-                        className={`px-3 py-1 rounded-md ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} text-sm hover:bg-opacity-80 transition duration-300 ease-in-out`}
+                        className={`px-2 py-1 rounded-md ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} text-xs hover:bg-opacity-80 transition duration-300 ease-in-out`}
                     >
                         {darkMode ? 'Light' : 'Dark'}
                     </button>
                 </div>
-                <div className="mb-4 relative" ref={presetInputRef}>
-                    <label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div className="mb-3 relative" ref={presetInputRef}>
+                    <label className={`block mb-1 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                         Select or search for a server:
                         <input
                             type="text"
@@ -500,20 +493,20 @@ const ArcGISRESTTreeMap = () => {
                             onChange={(e) => handlePresetInputChange(e, setSelectedPreset, presets, setFilteredPresets, setShowPresetDropdown, setHighlightedIndex)}
                             onFocus={() => handlePresetInputFocus(setFilteredPresets, presets, setShowPresetDropdown, setHighlightedIndex)}
                             onKeyDown={(e) => handleKeyDown(e, showPresetDropdown, showSuggestions, setHighlightedIndex, setShowPresetDropdown, filteredPresets, highlightedIndex, setSelectedSuggestionIndex, selectedSuggestionIndex, suggestions, handlePresetSelect, handleSuggestionClick)}
-                            className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            className={`w-full px-2 py-1 mt-1 text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500`}
                             placeholder="Type to search or select a server..."
                             />
                     </label>
                     {showPresetDropdown && (
                         <ul 
                             ref={dropdownRef}
-                            className={`absolute z-10 w-full mt-1 max-h-60 overflow-auto rounded-md shadow-lg ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}
+                            className={`absolute z-10 w-full mt-1 max-h-48 overflow-auto rounded-md shadow-lg ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'}`}
                         >
                             {filteredPresets.map((preset, index) => (
                                 <li
                                     key={index}
                                     onClick={() => handlePresetSelect(preset, setSelectedPreset, setUrl, setShowPresetDropdown, setHighlightedIndex)}
-                                    className={`px-3 py-2 cursor-pointer ${
+                                    className={`px-2 py-1 cursor-pointer text-xs ${
                                         index === highlightedIndex
                                             ? (darkMode ? 'bg-gray-600' : 'bg-gray-100')
                                             : (darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100')
@@ -525,18 +518,18 @@ const ArcGISRESTTreeMap = () => {
                             </ul>
                         )}
                     </div>
-                    <div className="mb-4">
-                        <label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <div className="mb-3">
+                        <label className={`block mb-1 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                             ArcGIS REST Services URL:
                             <input
                                 type="text"
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
-                                className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                className={`w-full px-2 py-1 mt-1 text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500`}
                             />
                         </label>
                     </div>
-                    <div className="mb-4 flex items-center justify-between">
+                    <div className="mb-3 flex items-center justify-between">
                         <label className="flex items-center cursor-pointer">
                             <div className="relative">
                                 <input
@@ -545,19 +538,19 @@ const ArcGISRESTTreeMap = () => {
                                     onChange={(e) => setSkipProperties(e.target.checked)}
                                     className="sr-only"
                                 />
-                                <div className={`w-8 h-5 ${darkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded-full shadow-inner`}></div>
-                                <div className={`absolute w-3 h-3 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-3' : ''}`}></div>
+                                <div className={`w-7 h-4 ${darkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded-full shadow-inner`}></div>
+                                <div className={`absolute w-2 h-2 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-3' : ''}`}></div>
                             </div>
-                            <div className={`ml-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-sm font-medium`}>
+                            <div className={`ml-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-xs font-medium`}>
                                 Skip Layer Properties
                             </div>
                         </label>
                     </div>
-                    <div className="flex space-x-2 mb-4">
+                    <div className="flex space-x-2 mb-3">
                         <button
                             onClick={generateTreeMap}
                             disabled={loading}
-                            className={`flex-1 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white px-3 py-1 rounded-md text-sm hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
+                            className={`flex-1 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
                         >
                             {loading ? (
                                 <div className="flex items-center">
@@ -571,17 +564,17 @@ const ArcGISRESTTreeMap = () => {
                         {loading && (
                             <button
                                 onClick={handleStopProcessing}
-                                className="flex-1 bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition duration-300 ease-in-out"
+                                className="flex-1 bg-red-500 text-white px-2 py-1 rounded-md text-xs hover:bg-red-600 focus:outline-none focus:ring-1 focus:ring-red-500 focus:ring-opacity-50 transition duration-300 ease-in-out"
                             >
                                 Stop
                             </button>
                         )}
                     </div>
-                    <div className="mb-4 flex justify-between">
-                        <button onClick={() => expandAll(setExpandedNodes, treeData)} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-sm hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
+                    <div className="mb-3 grid grid-cols-3 gap-2">
+                        <button onClick={() => expandAll(setExpandedNodes, treeData)} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-xs hover:bg-opacity-80 focus:outline-none focus:ring-1 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
                             Expand All
                         </button>
-                        <button onClick={() => collapseAll(setExpandedNodes)} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-sm hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
+                        <button onClick={() => collapseAll(setExpandedNodes)} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-xs hover:bg-opacity-80 focus:outline-none focus:ring-1 focus:ring-opacity-50 transition duration-300 ease-in-out`}>
                             Collapse All
                         </button>
                         <button onClick={() => {
@@ -597,43 +590,43 @@ const ArcGISRESTTreeMap = () => {
                                 link.click();
                                 document.body.removeChild(link);
                             }
-                        }} className="bg-green-500 text-white px-2 py-1 rounded-md text-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
+                        }} className="bg-green-500 text-white px-2 py-1 rounded-md text-xs hover:bg-green-600 focus:outline-none focus:ring-1 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
                             Export CSV
                         </button>
                     </div>
-                    <div className="mb-4">
-                        <label className={`block mb-2 text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <div className="mb-3">
+                        <label className={`block mb-1 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                             Search:
                             <input
                                 type="text"
                                 value={searchTerm}
                                 onChange={handleSearchChange}
-                                className={`w-full px-3 py-2 mt-1 text-sm ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                className={`w-full px-2 py-1 mt-1 text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500`}
                             />
                         </label>
                     </div>
-                    <div className="mb-4">
+                    <div className="mb-3">
                         <label className="flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={showOnlyActiveLayers}
                                 onChange={(e) => setShowOnlyActiveLayers(e.target.checked)}
-                                className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                                className="form-checkbox h-3 w-3 text-blue-600 transition duration-150 ease-in-out"
                             />
-                            <span className={`ml-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-sm`}>Show only active layers</span>
+                            <span className={`ml-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-xs`}>Show only active layers</span>
                         </label>
                     </div>
                     
                     {/* Bounding box info */}
                     {boundingBox && (
-                        <div className="mt-4 p-2 bg-blue-100 text-blue-800 rounded-md">
+                        <div className="mt-3 p-2 bg-blue-100 text-blue-800 rounded-md text-xs">
                             Bounding box set. Downloads will be filtered to the highlighted area.
                         </div>
                     )}
                     
                     {/* Unified status area for errors, tips, and download status */}
                     {(error || statusMessage) && (
-                        <div className={`mt-4 p-3 rounded-md text-sm flex items-center ${
+                        <div className={`mt-3 p-2 rounded-md text-xs flex items-center ${
                             error ? 'bg-red-100 text-red-500' : 
                             isDownloading ? 'bg-blue-100 text-blue-500' : 
                             'bg-green-100 text-green-500'
@@ -645,16 +638,9 @@ const ArcGISRESTTreeMap = () => {
                         </div>
                     )}
     
-					<div className={`tree-container mt-4 border p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} overflow-auto`} style={{maxHeight: 'calc(100vh - 26rem)'}}>
-						{renderTreeMap()}
-					</div>
-                    
-                    {/* Console */}
-                    <Console 
-                        consoleRef={consoleRef}
-                        consoleMessages={consoleMessages}
-                        darkMode={darkMode}
-                    />
+                    <div className={`tree-container mt-3 border p-3 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} overflow-auto`} style={{maxHeight: 'calc(100vh - 24rem)'}}>
+                        {renderTreeMap()}
+                    </div>
                 </div>
             );
         };
@@ -751,18 +737,23 @@ const ArcGISRESTTreeMap = () => {
 
             {renderSidePanel()}
             {renderContextMenu()}
+            
+            <Console 
+            consoleMessages={consoleMessages}
+            darkMode={darkMode}
+            />
 
             <style jsx global>{`
                     .floating-panel {
                         position: absolute;
-                        top: 16px;
-                        left: 16px;
-                        width: 384px;
+                        top: 12px;
+                        left: 12px;
+                        width: 360px;
                         z-index: 1000;
                         background-color: ${darkMode ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)'};
                         border-radius: 4px;
                         box-shadow: 0 1px 5px rgba(0,0,0,0.65);
-                        max-height: calc(100vh - 32px);
+                        max-height: calc(100vh - 24px);
                         overflow-y: auto;
                     }
                     .leaflet-popup-content-wrapper {
@@ -794,10 +785,6 @@ const ArcGISRESTTreeMap = () => {
                     .light-popup .leaflet-popup-tip {
                         background-color: #ffffff;
                         color: #1f2937;
-                    }
-                    .tree-container, .leaflet-popup-content, #consoleRef {
-                        overflow-y: auto;
-                        overflow-x: hidden;
                     }
                 `}</style>
             </div>
