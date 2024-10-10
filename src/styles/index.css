@@ -6,8 +6,8 @@
 body {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
+  transition: background-color 0.3s ease;
 }
-
 
 .tree-node {
     transition: all 0.3s ease;
@@ -91,6 +91,7 @@ body {
 .dark * {
     scrollbar-color: #555 transparent;
 }
+
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -106,3 +107,7 @@ body {
     animation: spin 1s ease-in-out infinite;
     margin-left: 8px;
 }
+
+.leaflet-container {
+    background: none !important;
+  }

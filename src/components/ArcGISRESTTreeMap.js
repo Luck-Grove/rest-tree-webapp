@@ -662,7 +662,7 @@ const ArcGISRESTTreeMap = () => {
           };
 
     return (
-        <div className={`h-screen ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-800'}`}
+        <div className={`h-screen ${darkMode ? 'bg-transparent text-gray-100' : 'bg-transparent text-gray-800'}`}
              onClick={closeContextMenu}>
             <div id="map" className="h-full w-full"></div>
             

@@ -114,6 +114,19 @@ const addClickEventToLayer = (layer, map, darkMode) => {
     });
 };
 
+const updatePageBackgroundColor = (basemap) => {
+    const body = document.body;
+    switch (basemap) {
+        case 'esriAerial':
+            body.style.backgroundColor = '#1a3d17'; // Dark green
+            break;
+        case 'googleHybrid':
+            body.style.backgroundColor = '#31492f'; // Slightly lighter dark green
+            break;
+        default:
+            body.style.backgroundColor = '#f2efe9'; // Off white (OSM default)
+    }
+};
 
 export const updateBasemap = (map, basemap, darkMode) => {
     map.eachLayer(layer => {
@@ -162,6 +175,8 @@ export const updateBasemap = (map, basemap, darkMode) => {
             maxNativeZoom: maxNativeZoom
         }).addTo(map);
     }
+
+    updatePageBackgroundColor(basemap);
 };
 
 export const zoomToLayerExtent = (layerId, treeData, map) => {

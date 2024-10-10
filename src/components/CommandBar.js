@@ -125,7 +125,7 @@ const CommandBar = ({ darkMode, onCommand, onFocusChange = () => {}, initialComm
                     placeholder="Enter command..."
                 />
                 {suggestions.length > 0 && isFocused && (
-                    <div className={`absolute bottom-full right-0 w-1/3 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-black'} border rounded-t mb-1`}>
+                    <div className={`absolute bottom-full left-0 w-1/4 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-black'} border rounded-t mb-1`}>
                         {suggestions.map((suggestion, index) => (
                             <div key={index} className="p-1 hover:bg-opacity-20 hover:bg-gray-500">
                                 {suggestion}
