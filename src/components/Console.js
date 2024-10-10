@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CommandBar from './CommandBar';
 import { setCookie, getCookie } from '../utils/cookieUtils';
 
-const Console = ({ consoleMessages, darkMode, onCommand }) => {
+const Console = ({ consoleMessages, darkMode, onCommand, addConsoleMessage }) => {
     const defaultHeight = 64; // Default height in pixels
     const minHeight = 50; // Minimum height in pixels
     const maxHeight = 500; // Maximum height in pixels

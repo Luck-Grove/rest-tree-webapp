@@ -14,8 +14,9 @@ import CommandBar from './CommandBar';
 import { initializeMap, updateMapLayers, updateBasemap, zoomToLayerExtent } from '../utils/mapUtils';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetSelect, handlePresetInputFocus } from '../utils/presetUtils';
 import { toggleNode, filterTreeData, exportToCSV } from '../utils/treeUtils';
-import { expandAll, collapseAll, handleDownloadLayer, handleDownloadShapefile } from '../utils/uiHelpers';
-import { fetchAndDisplayServices } from '../utils/api';
+import { expandAll, collapseAll } from '../utils/uiHelpers';
+import { handleDownloadLayer, handleDownloadShapefile } from '../utils/dlHelpers';
+import { fetchAndDisplayServices, writeToConsole } from '../utils/api';
 import { executeCommand } from '../utils/commandUtils';
 import bboxCommand from '../commands/bbox';
 
@@ -111,8 +112,8 @@ const ArcGISRESTTreeMap = () => {
             L.DomEvent.on(rectangleButton, 'click', function(e) {
                 L.DomEvent.stop(e);
                 // Execute the bbox command and log the results
-                const results = executeCommand('bbox', mapInstance);
-                results.forEach(addConsoleMessage);
+                executeCommand('bbclear', mapInstance, [], addConsoleMessage);
+                executeCommand('bbox', mapInstance, [], addConsoleMessage);
             });
         }
 
@@ -129,8 +130,10 @@ const ArcGISRESTTreeMap = () => {
 
         // Add keydown event listener to the map container
         const mapContainer = document.getElementById('map');
-        mapContainer.tabIndex = 0;
-        mapContainer.addEventListener('keydown', handleMapKeyDown);
+        if (mapContainer) {
+            mapContainer.tabIndex = 0;
+            mapContainer.addEventListener('keydown', handleMapKeyDown);
+        }
 
         mapInstance.whenReady(() => {
             setIsMapReady(true);
@@ -138,7 +141,9 @@ const ArcGISRESTTreeMap = () => {
     
         return () => {
             mapInstance.remove();
-            mapContainer.removeEventListener('keydown', handleMapKeyDown);
+            if (mapContainer) {
+                mapContainer.removeEventListener('keydown', handleMapKeyDown);
+            }
         };
     }, [basemap, darkMode]);
 
@@ -146,7 +151,7 @@ const ArcGISRESTTreeMap = () => {
         if (map && isMapReady) {
           updateMapLayers(map, selectedLayers, treeData, darkMode);
         }
-      }, [selectedLayers, map, darkMode, treeData, isMapReady]);
+    }, [selectedLayers, map, darkMode, treeData, isMapReady]);
 
     useEffect(() => {
         const savedDarkMode = getCookie('darkMode');
@@ -385,8 +390,7 @@ const ArcGISRESTTreeMap = () => {
     };
 
     const handleCommand = (command) => {
-        const results = executeCommand(command, mapRef.current);
-        results.forEach(addConsoleMessage);
+        executeCommand(command, mapRef.current, [], addConsoleMessage);
         setIsCommandBarVisible(false);
         setCurrentCommand('');
     };
@@ -396,8 +400,8 @@ const ArcGISRESTTreeMap = () => {
         return (
             <ContextMenu 
                 contextMenu={contextMenu}
-                handleDownloadLayer={() => handleDownloadLayer(contextMenu.nodeId, treeData, boundingBox, setIsDownloading, setStatusMessage)}
-                handleDownloadShapefile={() => handleDownloadShapefile(contextMenu.nodeId, treeData, boundingBox, setIsDownloading, setStatusMessage)}
+                handleDownloadLayer={() => handleDownloadLayer(contextMenu.nodeId, treeData, setIsDownloading, setStatusMessage)}
+                handleDownloadShapefile={() => handleDownloadShapefile(contextMenu.nodeId, treeData, setIsDownloading, setStatusMessage)}
                 darkMode={darkMode}
                 onClose={closeContextMenu}
             />
@@ -418,8 +422,8 @@ const ArcGISRESTTreeMap = () => {
                 handleContextMenu={handleContextMenuClick}
                 darkMode={darkMode}
                 showOnlyActiveLayers={showOnlyActiveLayers}
-                handleDownloadShapefile={(id) => handleDownloadShapefile(id, treeData, boundingBox, setIsDownloading, setStatusMessage)}
-                handleDownloadGeoJSON={(id) => handleDownloadLayer(id, treeData, boundingBox, setIsDownloading, setStatusMessage)}
+                handleDownloadShapefile={(id) => handleDownloadShapefile(id, treeData, setIsDownloading, setStatusMessage)}
+                handleDownloadGeoJSON={(id) => handleDownloadLayer(id, treeData, setIsDownloading, setStatusMessage)}
                 map={map}
                 zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
                 level={0}
@@ -700,6 +704,7 @@ const ArcGISRESTTreeMap = () => {
                 consoleMessages={consoleMessages}
                 darkMode={darkMode}
                 onCommand={handleCommand}
+                addConsoleMessage={addConsoleMessage}
                 isCommandBarVisible={isCommandBarVisible}
                 currentCommand={currentCommand}
             />

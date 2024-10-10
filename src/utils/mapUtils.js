@@ -33,7 +33,9 @@ export const initializeMap = (mapId, darkMode) => {
         zoomSnap: 0.1,
         zoomDelta: 0.5,
         maxZoom: 23,
-        wheelPxPerZoomLevel: 100
+        wheelPxPerZoomLevel: 100,
+        worldCopyJump: true,
+        keyboard:false
     });
     L.control.zoom({ position: 'topright' }).addTo(mapInstance);
 

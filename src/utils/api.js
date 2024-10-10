@@ -79,3 +79,12 @@ export const processService = async (parent, service, baseUrl, signal, setTreeDa
         await fetchAndDisplayServices(serviceUrl, serviceId, signal, setTreeData, addConsoleMessage, skipProperties);
     }
 };
+
+// New function to write to the console
+export const writeToConsole = (message, addConsoleMessage) => {
+    if (typeof addConsoleMessage === 'function') {
+        addConsoleMessage(message);
+    } else {
+        console.warn('Console writing function not provided');
+    }
+};

@@ -2,6 +2,7 @@ import bboxCommand from '../commands/bbox.js';
 import bbclearCommand from '../commands/bbclear.js';
 import helpCommand from '../commands/help.js';
 import exportCommand from '../commands/export.js';
+import { writeToConsole } from './api.js';
 
 const commands = {
   bbox: bboxCommand,
@@ -10,21 +11,18 @@ const commands = {
   export: exportCommand,
 };
 
-export const executeCommand = (command, map, args = []) => {
-  const results = [`Command: ${command}`];
+export const executeCommand = (command, map, args = [], addConsoleMessage) => {
+  writeToConsole(`Command: ${command}`, addConsoleMessage);
   
   if (command.trim() !== '') {
     const [commandName, ...commandArgs] = command.toLowerCase().split(' ');
     
     if (commands[commandName]) {
-      const commandResults = commands[commandName].execute(map, [...args, ...commandArgs], getCommandList());
-      results.push(...commandResults);
+      commands[commandName].execute(map, [...args, ...commandArgs], getCommandList(), addConsoleMessage);
     } else {
-      results.push(`Unknown command: ${commandName}. Run 'help' to view a list of commands.`);
+      writeToConsole(`Unknown command: ${commandName}. Run 'help' to view a list of commands.`, addConsoleMessage);
     }
   }
-  
-  return results;
 };
 
 export const getCommandSuggestions = (partialCommand) => {
