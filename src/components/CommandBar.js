@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getCommandSuggestions } from '../utils/commandUtils';
 
-const CommandBar = ({ darkMode, onCommand, onFocusChange = () => {}, initialCommand = '' }) => {
+const CommandBar = React.memo(
+  ({
+    darkMode,
+    onCommand,
+    onFocusChange = () => {},
+    initialCommand = '',
+  }) => {
     const [command, setCommand] = useState(initialCommand);
     const [commandHistory, setCommandHistory] = useState([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
@@ -9,133 +15,184 @@ const CommandBar = ({ darkMode, onCommand, onFocusChange = () => {}, initialComm
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef(null);
 
+    // Refs to store the latest values of isFocused and command
+    const isFocusedRef = useRef(isFocused);
+    const commandRef = useRef(command);
+
+    // Update refs whenever isFocused or command changes
     useEffect(() => {
-        if (inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, []);
+      isFocusedRef.current = isFocused;
+    }, [isFocused]);
 
     useEffect(() => {
-        setCommand(initialCommand);
+      commandRef.current = command;
+    }, [command]);
+
+    useEffect(() => {
+      setCommand(initialCommand);
     }, [initialCommand]);
 
     useEffect(() => {
-        if (command && isFocused) {
-            setSuggestions(getCommandSuggestions(command));
-        } else {
-            setSuggestions([]);
-        }
+      if (command && isFocused) {
+        setSuggestions(getCommandSuggestions(command));
+      } else {
+        setSuggestions([]);
+      }
     }, [command, isFocused]);
 
     const handleInputChange = (e) => {
-        const value = e.target.value;
-        if (/^[a-zA-Z0-9\s]*$/.test(value)) {
-            setCommand(value);
-            setHistoryIndex(-1);
-        }
+      const value = e.target.value;
+      if (/^[a-zA-Z0-9\s]*$/.test(value)) {
+        setCommand(value);
+        setHistoryIndex(-1);
+      }
     };
 
     const handleKeyDown = (e) => {
-        switch (e.key) {
-            case 'Enter':
-            case ' ':
-                e.preventDefault();
-                if (command.trim()) {
-                    onCommand(command.trim());
-                    setCommandHistory(prev => [...prev, command.trim()]);
-                    setCommand('');
-                    setHistoryIndex(-1);
-                }
-                break;
-            case 'Escape':
-                e.preventDefault();
-                onCommand('');
-                setCommand('');
-                setHistoryIndex(-1);
-                if (isFocused) {
-                    inputRef.current.blur();
-                } else {
-                    inputRef.current.focus();
-                }
-                break;
-            case 'ArrowUp':
-                e.preventDefault();
-                if (historyIndex < commandHistory.length - 1) {
-                    const newIndex = historyIndex + 1;
-                    setHistoryIndex(newIndex);
-                    setCommand(commandHistory[commandHistory.length - 1 - newIndex]);
-                }
-                break;
-            case 'ArrowDown':
-                e.preventDefault();
-                if (historyIndex > -1) {
-                    const newIndex = historyIndex - 1;
-                    setHistoryIndex(newIndex);
-                    setCommand(newIndex === -1 ? '' : commandHistory[commandHistory.length - 1 - newIndex]);
-                }
-                break;
-            default:
-                break;
-        }
+      switch (e.key) {
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          if (command.trim()) {
+            onCommand(command.trim());
+            setCommandHistory((prev) => [...prev, command.trim()]);
+            setCommand('');
+            setHistoryIndex(-1);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          onCommand('');
+          setCommand('');
+          setHistoryIndex(-1);
+          if (isFocused) {
+            inputRef.current.blur();
+          } else {
+            inputRef.current.focus();
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          if (historyIndex < commandHistory.length - 1) {
+            const newIndex = historyIndex + 1;
+            setHistoryIndex(newIndex);
+            setCommand(
+              commandHistory[commandHistory.length - 1 - newIndex]
+            );
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (historyIndex > -1) {
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setCommand(
+              newIndex === -1
+                ? ''
+                : commandHistory[commandHistory.length - 1 - newIndex]
+            );
+          }
+          break;
+        default:
+          break;
+      }
     };
 
     const handleFocus = () => {
-        setIsFocused(true);
-        onFocusChange(true);
+      setIsFocused(true);
+      onFocusChange(true);
     };
 
     const handleBlur = () => {
-        setIsFocused(false);
-        onFocusChange(false);
+      setIsFocused(false);
+      onFocusChange(false);
     };
 
-    // Add global key listener for Escape
-    useEffect(() => {
-        const handleGlobalKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                if (isFocused) {
-                    inputRef.current.blur();
-                } else {
-                    inputRef.current.focus();
-                }
-            }
-        };
+    // Memoize the global keydown handler
+    const handleGlobalKeyDown = useCallback((e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (isFocusedRef.current) {
+          inputRef.current.blur();
+        } else {
+          inputRef.current.focus();
+        }
+      } else {
+        if (
+          !isFocusedRef.current &&
+          !document.activeElement.matches(
+            'input, textarea, [contenteditable="true"]'
+          )
+        ) {
+          const key = e.key;
+          if (
+            key.length === 1 &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.altKey
+          ) {
+            e.preventDefault();
+            inputRef.current.focus();
+            setCommand(key);
+          }
+        }
+      }
+    }, []); // Empty dependencies ensure the function reference doesn't change
 
-        document.addEventListener('keydown', handleGlobalKeyDown);
-        return () => {
-            document.removeEventListener('keydown', handleGlobalKeyDown);
-        };
-    }, [isFocused]);
+    // Add the global keydown listener only once
+    useEffect(() => {
+        console.log('Adding global keydown listener');
+      document.addEventListener('keydown', handleGlobalKeyDown);
+      return () => {
+        console.log('Removing global keydown listener');
+        document.removeEventListener('keydown', handleGlobalKeyDown);
+      };
+    }, [handleGlobalKeyDown]); // Only runs once due to memoization
 
     return (
-        <div className={`fixed bottom-0 left-1/3 w-1/3 p-2 z-[1000] opacity-90 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <div className="relative">
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={command}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    onFocus={handleFocus}
-                    onBlur={handleBlur}
-                    className={`w-full p-1 rounded ${
-                        darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
-                    }`}
-                    placeholder="Enter command..."
-                />
-                {suggestions.length > 0 && isFocused && (
-                    <div className={`absolute bottom-full left-0 w-1/4 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-black'} border rounded-t mb-1`}>
-                        {suggestions.map((suggestion, index) => (
-                            <div key={index} className="p-1 hover:bg-opacity-20 hover:bg-gray-500">
-                                {suggestion}
-                            </div>
-                        ))}
-                    </div>
-                )}
+      <div
+        className={`fixed bottom-0 left-1/3 w-1/3 p-2 z-[1000] opacity-90 ${
+          darkMode ? 'bg-gray-800' : 'bg-white'
+        }`}
+      >
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={command}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            className={`w-full p-1 rounded ${
+              darkMode
+                ? 'bg-gray-700 text-white'
+                : 'bg-gray-100 text-black'
+            }`}
+            placeholder="Enter command..."
+          />
+          {suggestions.length > 0 && isFocused && (
+            <div
+              className={`absolute bottom-full left-0 w-1/4 ${
+                darkMode
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white text-black'
+              } border rounded-t mb-1`}
+            >
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  className="p-1 hover:bg-opacity-20 hover:bg-gray-500"
+                >
+                  {suggestion}
+                </div>
+              ))}
             </div>
+          )}
         </div>
+      </div>
     );
-};
+  }
+);
 
 export default CommandBar;
