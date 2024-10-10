@@ -124,6 +124,11 @@ const CommandBar = ({
   // Update global key listener to handle initial key presses
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
+      // Check if the active element is an input field or contenteditable
+      const isInputField = document.activeElement.matches(
+        'input, textarea, [contenteditable="true"]'
+      );
+
       if (e.key === 'Escape') {
         e.preventDefault();
         if (isFocused) {
@@ -131,29 +136,22 @@ const CommandBar = ({
         } else {
           inputRef.current.focus();
         }
-      } else if (e.key === ' ' && !isFocused && commandHistory.length > 0) {
+      } else if (e.key === ' ' && !isFocused && !isInputField && commandHistory.length > 0) {
         e.preventDefault();
         inputRef.current.focus();
         const lastCommand = commandHistory[commandHistory.length - 1];
         executeCommand(lastCommand);
-      } else {
+      } else if (!isFocused && !isInputField) {
+        const key = e.key;
         if (
-          !isFocused &&
-          !document.activeElement.matches(
-            'input, textarea, [contenteditable="true"]'
-          )
+          key.length === 1 &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey
         ) {
-          const key = e.key;
-          if (
-            key.length === 1 &&
-            !e.ctrlKey &&
-            !e.metaKey &&
-            !e.altKey
-          ) {
-            e.preventDefault();
-            inputRef.current.focus();
-            setCommand(key);
-          }
+          e.preventDefault();
+          inputRef.current.focus();
+          setCommand(key);
         }
       }
     };
