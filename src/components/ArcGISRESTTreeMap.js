@@ -60,7 +60,7 @@ const ArcGISRESTTreeMap = () => {
     const lastContextMenuTrigger = useRef(null);
     const sidePanelRef = useRef(null);
     const [isMapReady, setIsMapReady] = useState(false);
-    const [isCommandBarVisible, setIsCommandBarVisible] = useState(false);
+
     const [currentCommand, setCurrentCommand] = useState('');
     const mapRef = useRef(null);
 
@@ -207,10 +207,8 @@ const ArcGISRESTTreeMap = () => {
         // Handler functions
     const handleMapKeyDown = (e) => {
         if (e.key === 'Escape') {
-            setIsCommandBarVisible(false);
             setCurrentCommand('');
-        } else if (!isCommandBarVisible && /^[a-zA-Z0-9]$/.test(e.key)) {
-            setIsCommandBarVisible(true);
+        } else if (/^[a-zA-Z0-9]$/.test(e.key)) {
             setCurrentCommand(e.key);
         }
     };
@@ -391,7 +389,6 @@ const ArcGISRESTTreeMap = () => {
 
     const handleCommand = (command) => {
         executeCommand(command, mapRef.current, [], addConsoleMessage);
-        setIsCommandBarVisible(false);
         setCurrentCommand('');
     };
 
@@ -705,16 +702,8 @@ const ArcGISRESTTreeMap = () => {
                 darkMode={darkMode}
                 onCommand={handleCommand}
                 addConsoleMessage={addConsoleMessage}
-                isCommandBarVisible={isCommandBarVisible}
                 currentCommand={currentCommand}
             />
-            {isCommandBarVisible && (
-                <CommandBar
-                    darkMode={darkMode}
-                    onCommand={handleCommand}
-                    initialCommand={currentCommand}
-                />
-            )}
 
             <style jsx global>{`
                     .floating-panel {
