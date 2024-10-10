@@ -9,12 +9,15 @@ import Console from './Console';
 import ContextMenu from './ContextMenu';
 import SearchBar from './SearchBar';
 import TreeNode from './TreeNode';
+import CommandBar from './CommandBar';
 
 import { initializeMap, updateMapLayers, updateBasemap, zoomToLayerExtent } from '../utils/mapUtils';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetSelect, handlePresetInputFocus } from '../utils/presetUtils';
 import { toggleNode, filterTreeData, exportToCSV } from '../utils/treeUtils';
 import { expandAll, collapseAll, handleDownloadLayer, handleDownloadShapefile } from '../utils/uiHelpers';
 import { fetchAndDisplayServices } from '../utils/api';
+import { executeCommand } from '../utils/commandUtils';
+import bboxCommand from '../commands/bbox';
 
 const ArcGISRESTTreeMap = () => {
     const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
@@ -56,6 +59,9 @@ const ArcGISRESTTreeMap = () => {
     const lastContextMenuTrigger = useRef(null);
     const sidePanelRef = useRef(null);
     const [isMapReady, setIsMapReady] = useState(false);
+    const [isCommandBarVisible, setIsCommandBarVisible] = useState(false);
+    const [currentCommand, setCurrentCommand] = useState('');
+    const mapRef = useRef(null);
 
     useEffect(() => {
         fetchXMLPresets().then(setPresets).catch(error => {
@@ -71,6 +77,7 @@ const ArcGISRESTTreeMap = () => {
     useEffect(() => {
         const mapInstance = initializeMap('map', darkMode);
         setMap(mapInstance);
+        mapRef.current = mapInstance;
 
         // Apply the initial basemap
         updateBasemap(mapInstance, basemap, darkMode);
@@ -96,35 +103,43 @@ const ArcGISRESTTreeMap = () => {
             edit: false
         });
         mapInstance.addControl(drawControl);
-        
-        // Event listener for when the rectangle draw button is clicked
-        mapInstance.on('draw:drawstart', (e) => {
-            if (e.layerType === 'rectangle') {
-                // Remove all existing rectangles
-                mapInstance.eachLayer((layer) => {
-                    if (layer instanceof L.Rectangle) {
-                        mapInstance.removeLayer(layer);
-                    }
-                });
-                setBoundingBox(null);
-            }
-        });
 
+        // Override the rectangle button behavior
+        const rectangleButton = document.querySelector('.leaflet-draw-draw-rectangle');
+        if (rectangleButton) {
+            L.DomEvent.off(rectangleButton, 'click');
+            L.DomEvent.on(rectangleButton, 'click', function(e) {
+                L.DomEvent.stop(e);
+                // Execute the bbox command and log the results
+                const results = executeCommand('bbox', mapInstance);
+                results.forEach(addConsoleMessage);
+            });
+        }
+
+        // Event listeners for drawing
         mapInstance.on(L.Draw.Event.CREATED, (event) => {
             if (event.layerType === 'rectangle') {
-                if (boundingBox) {
-                    mapInstance.removeLayer(boundingBox);
+                if (mapInstance.boundingBox) {
+                    mapInstance.removeLayer(mapInstance.boundingBox);
                 }
-                setBoundingBox(event.layer);
+                mapInstance.boundingBox = event.layer;
                 event.layer.addTo(mapInstance);
             }
         });
+
+        // Add keydown event listener to the map container
+        const mapContainer = document.getElementById('map');
+        mapContainer.tabIndex = 0;
+        mapContainer.addEventListener('keydown', handleMapKeyDown);
 
         mapInstance.whenReady(() => {
             setIsMapReady(true);
         });
     
-        return () => mapInstance.remove();
+        return () => {
+            mapInstance.remove();
+            mapContainer.removeEventListener('keydown', handleMapKeyDown);
+        };
     }, [basemap, darkMode]);
 
     useEffect(() => {
@@ -184,8 +199,16 @@ const ArcGISRESTTreeMap = () => {
         }
     }, [selectedSuggestionIndex]);
 
-    // Handler functions
-
+        // Handler functions
+    const handleMapKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            setIsCommandBarVisible(false);
+            setCurrentCommand('');
+        } else if (!isCommandBarVisible && /^[a-zA-Z0-9]$/.test(e.key)) {
+            setIsCommandBarVisible(true);
+            setCurrentCommand(e.key);
+        }
+    };
     const handleBasemapChange = (e) => {
         const selectedBasemap = e.target.value;
         setBasemap(selectedBasemap);
@@ -199,80 +222,6 @@ const ArcGISRESTTreeMap = () => {
 
     const addConsoleMessage = (message) => {
         setConsoleMessages(prev => [...prev, message]);
-    };
-
-    const handleDownloadGeoJSON = async (nodeId) => {
-        const node = treeData[nodeId];
-        if (!node) return;
-
-        setIsDownloading(true);
-        setStatusMessage('Initializing GeoJSON download...');
-
-        try {
-            const response = await axios.get(`${node.url}?f=json`);
-            const layerInfo = response.data;
-
-            if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
-                let allFeatures = [];
-                let offset = 0;
-                const limit = 1000;
-                let hasMore = true;
-
-                while (hasMore) {
-                    let downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
-                    
-                    if (boundingBox) {
-                        const bounds = boundingBox.getBounds();
-                        const bboxString = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-                        downloadUrl += `&geometry=${encodeURIComponent(bboxString)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&outSR=4326`;
-                    }
-
-                    const geojsonResponse = await fetch(downloadUrl);
-                    const geojsonData = await geojsonResponse.json();
-                    
-                    if (geojsonData.features && geojsonData.features.length > 0) {
-                        allFeatures = allFeatures.concat(geojsonData.features);
-                        offset += geojsonData.features.length;
-                        hasMore = geojsonData.features.length === limit;
-                    } else {
-                        hasMore = false;
-                    }
-
-                    setStatusMessage(`Downloaded ${allFeatures.length} features...`);
-                }
-
-                if (allFeatures.length === 0) {
-                    setStatusMessage('No features found within the bounding box.');
-                    return;
-                }
-
-                const completeGeojson = {
-                    type: "FeatureCollection",
-                    features: allFeatures
-                };
-
-                const blob = new Blob([JSON.stringify(completeGeojson)], { type: 'application/json' });
-                const downloadLink = document.createElement('a');
-                downloadLink.href = URL.createObjectURL(blob);
-                downloadLink.download = `${node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
-                
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-
-                setStatusMessage(`GeoJSON download completed for ${node.text}. ${allFeatures.length} features downloaded.`);
-            } else {
-                setStatusMessage('This layer does not support direct downloads.');
-            }
-        } catch (error) {
-            console.error('Error fetching layer info:', error);
-            setStatusMessage(`Error downloading GeoJSON: ${error.message}`);
-        } finally {
-            setTimeout(() => {
-                setIsDownloading(false);
-                setStatusMessage('');
-            }, 5000);
-        }
     };
 
     const handleSearchChange = (e) => {
@@ -435,6 +384,13 @@ const ArcGISRESTTreeMap = () => {
         setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
     };
 
+    const handleCommand = (command) => {
+        const results = executeCommand(command, mapRef.current);
+        results.forEach(addConsoleMessage);
+        setIsCommandBarVisible(false);
+        setCurrentCommand('');
+    };
+
     // Render functions
     const renderContextMenu = () => {
         return (
@@ -463,10 +419,12 @@ const ArcGISRESTTreeMap = () => {
                 darkMode={darkMode}
                 showOnlyActiveLayers={showOnlyActiveLayers}
                 handleDownloadShapefile={(id) => handleDownloadShapefile(id, treeData, boundingBox, setIsDownloading, setStatusMessage)}
-                handleDownloadGeoJSON={handleDownloadGeoJSON}
+                handleDownloadGeoJSON={(id) => handleDownloadLayer(id, treeData, boundingBox, setIsDownloading, setStatusMessage)}
                 map={map}
                 zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
                 level={0}
+                setIsDownloading={setIsDownloading}
+                setStatusMessage={setStatusMessage}
             />
         );
     };
@@ -618,7 +576,7 @@ const ArcGISRESTTreeMap = () => {
                     </div>
                     
                     {/* Bounding box info */}
-                    {boundingBox && (
+                    {map && bboxCommand.getBoundingBox(map) && (
                         <div className="mt-3 p-2 bg-blue-100 text-blue-800 rounded-md text-xs">
                             Bounding box set. Downloads will be filtered to the highlighted area.
                         </div>
@@ -720,7 +678,7 @@ const ArcGISRESTTreeMap = () => {
                 handleKeyDown={handleKeyDown}
                 selectedSuggestionIndex={selectedSuggestionIndex}
                 suggestionsRef={suggestionsRef}
-                />
+            />
 
             {/* Basemap selector */}
             <div className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-gray-800 p-2 rounded shadow-md">
@@ -739,9 +697,19 @@ const ArcGISRESTTreeMap = () => {
             {renderContextMenu()}
             
             <Console 
-            consoleMessages={consoleMessages}
-            darkMode={darkMode}
+                consoleMessages={consoleMessages}
+                darkMode={darkMode}
+                onCommand={handleCommand}
+                isCommandBarVisible={isCommandBarVisible}
+                currentCommand={currentCommand}
             />
+            {isCommandBarVisible && (
+                <CommandBar
+                    darkMode={darkMode}
+                    onCommand={handleCommand}
+                    initialCommand={currentCommand}
+                />
+            )}
 
             <style jsx global>{`
                     .floating-panel {

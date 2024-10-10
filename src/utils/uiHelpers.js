@@ -2,14 +2,15 @@ import React from 'react';
 import axios from 'axios';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import bboxCommand from '../commands/bbox';
 
-export const renderTree = (treeData, nodeId, level = 0, expandedNodes, toggleNode, selectedLayers, setSelectedLayers, setContextMenu, darkMode, zoomToLayerExtent, map) => {
+export const renderTree = (treeData, nodeId, level = 0, expandedNodes, toggleNode, selectedLayers, setSelectedLayers, setContextMenu, darkMode, zoomToLayerExtent, map, setIsDownloading, setStatusMessage) => {
     const node = treeData[nodeId];
     if (!node) return null;
 
     const childNodes = Object.entries(treeData)
         .filter(([_, data]) => data.parent === nodeId)
-        .map(([childId, _]) => renderTree(treeData, childId, level + 1, expandedNodes, toggleNode, selectedLayers, setSelectedLayers, setContextMenu, darkMode, zoomToLayerExtent, map))
+        .map(([childId, _]) => renderTree(treeData, childId, level + 1, expandedNodes, toggleNode, selectedLayers, setSelectedLayers, setContextMenu, darkMode, zoomToLayerExtent, map, setIsDownloading, setStatusMessage))
         .filter(Boolean);
 
     const isExpanded = expandedNodes.has(nodeId);
@@ -70,7 +71,7 @@ export const renderTree = (treeData, nodeId, level = 0, expandedNodes, toggleNod
         <div 
             key={nodeId} 
             className={`ml-${level * 4} ${level === 0 ? 'mt-2' : ''} fade-in`}
-            onContextMenu={(e) => handleContextMenu(e, nodeId, setContextMenu)} // Pass setContextMenu here
+            onContextMenu={(e) => handleContextMenu(e, nodeId, setContextMenu)}
         >
             <div className="flex items-center justify-between p-1 rounded-md tree-node">
                 <div className="flex items-center">
@@ -98,7 +99,8 @@ export const renderTree = (treeData, nodeId, level = 0, expandedNodes, toggleNod
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();
-                                handleDownloadShapefile(nodeId);
+                                const boundingBox = bboxCommand.getBoundingBox(map);
+                                handleDownloadShapefile(nodeId, treeData, boundingBox, setIsDownloading, setStatusMessage);
                             }}
                             className={`flex flex-col items-center p-1 ${darkMode ? 'text-gray-200 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}
                             title="Download Shapefile"
@@ -160,6 +162,7 @@ export const handleDownloadLayer = async (nodeId, treeData, boundingBox, setIsDo
                 if (boundingBox) {
                     const bounds = boundingBox.getBounds();
                     const bboxString = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+                    console.log('Using bounding box:', bboxString); // Debugging bounding box output
                     downloadUrl += `&geometry=${encodeURIComponent(bboxString)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&outSR=4326`;
                 }
 
@@ -178,7 +181,7 @@ export const handleDownloadLayer = async (nodeId, treeData, boundingBox, setIsDo
             }
 
             if (allFeatures.length === 0) {
-                setStatusMessage('No features found within the bounding box.');
+                setStatusMessage('No features found within the specified area.');
                 return;
             }
 
@@ -228,6 +231,7 @@ export const handleDownloadShapefile = async (nodeId, treeData, boundingBox, set
                 if (boundingBox) {
                     const bounds = boundingBox.getBounds();
                     const bboxString = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+                    console.log('Using bounding box:', bboxString); // Debugging bounding box output
                     downloadUrl += `&geometry=${encodeURIComponent(bboxString)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&outSR=4326`;
                 }
 
@@ -246,7 +250,7 @@ export const handleDownloadShapefile = async (nodeId, treeData, boundingBox, set
             }
 
             if (allFeatures.length === 0) {
-                setStatusMessage('No features found within the bounding box.');
+                setStatusMessage('No features found within the specified area.');
                 return;
             }
 
@@ -373,7 +377,6 @@ const fixFieldNames = (features) => {
         feature.properties = newProperties;
     });
 };
-
 
 // Compression level function
 const getCompressionLevel = (featureCount) => {
