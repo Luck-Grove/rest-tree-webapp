@@ -2,18 +2,69 @@ import axios from 'axios';
 import { addTreeNode, getNextId } from './treeUtils';
 import React from 'react';
 
+// Create an axios instance with default config
+const api = axios.create({
+    timeout: 10000, // 10 seconds timeout
+});
+
+// Simple in-memory cache
+const cache = new Map();
+
+// Rate limiting
+const rateLimiter = {
+    queue: [],
+    maxRequestsPerSecond: 10,
+    interval: null,
+
+    enqueue(fn) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ fn, resolve, reject });
+            this.process();
+        });
+    },
+
+    process() {
+        if (!this.interval) {
+            this.interval = setInterval(() => {
+                const item = this.queue.shift();
+                if (item) {
+                    item.fn().then(item.resolve).catch(item.reject);
+                }
+                if (this.queue.length === 0) {
+                    clearInterval(this.interval);
+                    this.interval = null;
+                }
+            }, 1000 / this.maxRequestsPerSecond);
+        }
+    }
+};
+
+// Generic fetch function with caching and rate limiting
+export const fetchWithCache = async (url, params = {}, useCache = true) => {
+    const cacheKey = `${url}${JSON.stringify(params)}`;
+    if (useCache && cache.has(cacheKey)) {
+        return cache.get(cacheKey);
+    }
+
+    const fetchData = async () => {
+        const response = await api.get(url, { params });
+        if (useCache) {
+            cache.set(cacheKey, response.data);
+        }
+        return response.data;
+    };
+
+    return rateLimiter.enqueue(fetchData);
+};
+
 export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, addConsoleMessage, skipProperties) => {
     if (signal.aborted) {
         throw new Error('Operation was cancelled');
     }
     
-    addConsoleMessage(<React.Fragment>Processing content for <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{url}</a></React.Fragment>);
+    writeToConsole(<React.Fragment>Processing content for <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{url}</a></React.Fragment>, addConsoleMessage);
     try {
-        const response = await axios.get(url, { 
-            params: { f: 'json' },
-            signal: signal
-        });
-        const data = response.data;
+        const data = await fetchWithCache(url, { f: 'json' });
 
         if (data.services) {
             for (const service of data.services) {
@@ -60,7 +111,7 @@ export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, 
         if (error.name === 'AbortError' || error.message === 'Operation was cancelled') {
             throw new Error('Operation was cancelled');
         }
-        addConsoleMessage(`Error fetching services: ${error.message}`);
+        writeToConsole(`Error fetching services: ${error.message}`, addConsoleMessage);
         throw error;
     }
 };
@@ -80,11 +131,61 @@ export const processService = async (parent, service, baseUrl, signal, setTreeDa
     }
 };
 
-// New function to write to the console
+// Function to write to the console
 export const writeToConsole = (message, addConsoleMessage) => {
     if (typeof addConsoleMessage === 'function') {
         addConsoleMessage(message);
     } else {
         console.warn('Console writing function not provided');
+    }
+};
+
+// Function to clear the cache
+export const clearCache = () => {
+    cache.clear();
+    writeToConsole('Cache cleared', console.log);
+};
+
+// Function to set rate limit
+export const setRateLimit = (requestsPerSecond) => {
+    rateLimiter.maxRequestsPerSecond = requestsPerSecond;
+    writeToConsole(`Rate limit set to ${requestsPerSecond} requests per second`, console.log);
+};
+
+// Function to fetch metadata for a specific service
+export const fetchServiceMetadata = async (serviceUrl) => {
+    try {
+        const metadata = await fetchWithCache(`${serviceUrl}/info/metadata`, { f: 'json' });
+        return metadata;
+    } catch (error) {
+        writeToConsole(`Error fetching service metadata: ${error.message}`, console.error);
+        throw error;
+    }
+};
+
+// Function to fetch and process feature data
+export const fetchFeatureData = async (featureLayerUrl, where = '1=1', outFields = '*', returnGeometry = true) => {
+    try {
+        const data = await fetchWithCache(`${featureLayerUrl}/query`, {
+            where,
+            outFields,
+            returnGeometry,
+            f: 'geojson'
+        });
+        return data;
+    } catch (error) {
+        writeToConsole(`Error fetching feature data: ${error.message}`, console.error);
+        throw error;
+    }
+};
+
+// Function to check service status
+export const checkServiceStatus = async (serviceUrl) => {
+    try {
+        const status = await fetchWithCache(`${serviceUrl}/info`, { f: 'json' });
+        return status.status === 'success';
+    } catch (error) {
+        writeToConsole(`Error checking service status: ${error.message}`, console.error);
+        return false;
     }
 };

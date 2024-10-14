@@ -100,12 +100,23 @@ export const handleDownloadShapefile = async (nodeId, treeData, setIsDownloading
                 return;
             }
 
+            console.log(`Total features fetched: ${allFeatures.length}`);
+
             // Flatten geometries and validate features
             const flattenedFeatures = [];
-            for (let feature of allFeatures) {
-                if (feature.geometry && feature.geometry.type.startsWith('Multi')) {
+            let invalidFeatureCount = 0;
+
+            for (let i = 0; i < allFeatures.length; i++) {
+                const feature = allFeatures[i];
+                
+                if (!feature.geometry || !feature.geometry.type) {
+                    invalidFeatureCount++;
+                    continue;
+                }
+
+                if (feature.geometry.type.startsWith('Multi')) {
                     const simpleType = feature.geometry.type.replace('Multi', '');
-                    feature.geometry.coordinates.forEach(coords => {
+                    feature.geometry.coordinates.forEach((coords) => {
                         flattenedFeatures.push({
                             type: 'Feature',
                             properties: feature.properties,
@@ -120,6 +131,11 @@ export const handleDownloadShapefile = async (nodeId, treeData, setIsDownloading
                 }
             }
 
+            console.log(`Total flattened features: ${flattenedFeatures.length}`);
+            if (invalidFeatureCount > 0) {
+                console.warn(`Skipped ${invalidFeatureCount} invalid features`);
+            }
+
             setStatusMessage('Grouping features by geometry type...');
             const featuresByType = flattenedFeatures.reduce((acc, feature) => {
                 const geomType = feature.geometry.type;
@@ -129,6 +145,8 @@ export const handleDownloadShapefile = async (nodeId, treeData, setIsDownloading
                 acc[geomType].push(feature);
                 return acc;
             }, {});
+
+            console.log('Features grouped by type:', Object.keys(featuresByType).map(type => `${type}: ${featuresByType[type].length}`));
 
             const baseFileName = node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const zip = new JSZip();
@@ -140,9 +158,21 @@ export const handleDownloadShapefile = async (nodeId, treeData, setIsDownloading
                 // Fix field names
                 fixFieldNames(features);
 
-                const geojson = { type: "FeatureCollection", features };
-                const options = { types: {} };
+                // Validate and filter features
+                const validFeatures = features.filter((feature) => {
+                    return feature.geometry && 
+                           feature.geometry.coordinates && 
+                           feature.geometry.coordinates.length > 0 && 
+                           (geomType !== 'Polygon' || (Array.isArray(feature.geometry.coordinates[0]) && feature.geometry.coordinates[0].length >= 3));
+                });
 
+                if (validFeatures.length < features.length) {
+                    console.warn(`Skipped ${features.length - validFeatures.length} invalid ${geomType} features`);
+                }
+
+                const geojson = { type: "FeatureCollection", features: validFeatures };
+                const options = { types: {} };
+                
                 // Map geometry type to shpwrite types
                 switch (geomType) {
                     case 'Point': options.types.point = 'Point'; break;
@@ -171,6 +201,7 @@ export const handleDownloadShapefile = async (nodeId, treeData, setIsDownloading
                     }
                 } catch (zipError) {
                     console.error(`Error generating Shapefile for ${geomType}:`, zipError);
+                    setStatusMessage(`Error generating Shapefile for ${geomType}: ${zipError.message}`);
                 }
             }
 
