@@ -1,12 +1,9 @@
 import { writeToConsole } from '../utils/api.js';
-import { lastBoundingBoxCoordinates } from './bbox.js';
+import bboxCommand from './bbox.js';
 
 const bbclearCommand = {
   execute: (map, args, commandList, addConsoleMessage) => {
-    if (map && map.boundingBox) {
-      map.removeLayer(map.boundingBox);
-      map.boundingBox = null;
-      lastBoundingBoxCoordinates = null;
+    if (bboxCommand.clearBoundingBox(map)) {
       writeToConsole("Bounding box cleared.", addConsoleMessage);
     } else {
       writeToConsole("No bounding box to clear.", addConsoleMessage);
