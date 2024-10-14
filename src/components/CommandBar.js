@@ -13,6 +13,9 @@ const CommandBar = ({
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionIndex, setSuggestionIndex] = useState(-1);
   const [isFocused, setIsFocused] = useState(false);
+  const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
+  const [isScrollingSuggestions, setIsScrollingSuggestions] = useState(false);
+  const [lastExecutedCommand, setLastExecutedCommand] = useState('');
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -20,22 +23,33 @@ const CommandBar = ({
   }, [initialCommand]);
 
   useEffect(() => {
-    if (command && isFocused) {
+    if (command && isFocused && !isNavigatingHistory && !isScrollingSuggestions) {
       setSuggestions(getCommandSuggestions(command));
       setSuggestionIndex(-1);
-    } else {
+    } else if (!command) {
       setSuggestions([]);
       setSuggestionIndex(-1);
     }
-  }, [command, isFocused]);
+  }, [command, isFocused, isNavigatingHistory, isScrollingSuggestions]);
 
   const executeCommand = useCallback((cmd) => {
     onCommand(cmd);
-    setCommandHistory((prev) => [...prev, cmd]);
+    setCommandHistory((prev) => {
+      if (cmd === lastExecutedCommand && prev.length > 0) {
+        // If the command is the same as the last executed command, update the last entry
+        return [...prev.slice(0, -1), cmd];
+      } else {
+        // Otherwise, add a new entry
+        return [...prev, cmd];
+      }
+    });
+    setLastExecutedCommand(cmd);
     setCommand('');
     setHistoryIndex(-1);
     setSuggestionIndex(-1);
-  }, [onCommand]);
+    setIsNavigatingHistory(false);
+    setIsScrollingSuggestions(false);
+  }, [onCommand, lastExecutedCommand]);
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -43,6 +57,8 @@ const CommandBar = ({
       setCommand(value);
       setHistoryIndex(-1);
       setSuggestionIndex(-1);
+      setIsNavigatingHistory(false);
+      setIsScrollingSuggestions(false);
     }
   };
 
@@ -55,6 +71,8 @@ const CommandBar = ({
         } else if (command.trim()) {
           executeCommand(command.trim());
         }
+        setIsNavigatingHistory(false);
+        setIsScrollingSuggestions(false);
         break;
       case ' ':
         e.preventDefault();
@@ -64,6 +82,8 @@ const CommandBar = ({
         } else if (command.trim()) {
           executeCommand(command.trim());
         }
+        setIsNavigatingHistory(false);
+        setIsScrollingSuggestions(false);
         break;
       case 'Escape':
         e.preventDefault();
@@ -71,6 +91,8 @@ const CommandBar = ({
         setCommand('');
         setHistoryIndex(-1);
         setSuggestionIndex(-1);
+        setIsNavigatingHistory(false);
+        setIsScrollingSuggestions(false);
         if (isFocused) {
           inputRef.current.blur();
         } else {
@@ -79,33 +101,48 @@ const CommandBar = ({
         break;
       case 'ArrowUp':
         e.preventDefault();
-        if (suggestions.length > 0) {
+        if (command === '' || isNavigatingHistory) {
+          if (historyIndex < commandHistory.length - 1) {
+            const newIndex = historyIndex + 1;
+            setHistoryIndex(newIndex);
+            setCommand(commandHistory[commandHistory.length - 1 - newIndex]);
+            setIsNavigatingHistory(true);
+            setIsScrollingSuggestions(false);
+          }
+        } else if (suggestions.length > 0) {
+          setIsScrollingSuggestions(true);
           setSuggestionIndex((prevIndex) => 
             prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
           );
-        } else if (historyIndex < commandHistory.length - 1) {
-          const newIndex = historyIndex + 1;
-          setHistoryIndex(newIndex);
-          setCommand(commandHistory[commandHistory.length - 1 - newIndex]);
+          setCommand(suggestions[suggestionIndex > 0 ? suggestionIndex - 1 : suggestions.length - 1]);
         }
         break;
       case 'ArrowDown':
         e.preventDefault();
-        if (suggestions.length > 0) {
+        if (isNavigatingHistory) {
+          if (historyIndex > -1) {
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setCommand(
+              newIndex === -1
+                ? ''
+                : commandHistory[commandHistory.length - 1 - newIndex]
+            );
+            if (newIndex === -1) {
+              setIsNavigatingHistory(false);
+            }
+          }
+        } else if (suggestions.length > 0) {
+          setIsScrollingSuggestions(true);
           setSuggestionIndex((prevIndex) => 
             prevIndex < suggestions.length - 1 ? prevIndex + 1 : -1
           );
-        } else if (historyIndex > -1) {
-          const newIndex = historyIndex - 1;
-          setHistoryIndex(newIndex);
-          setCommand(
-            newIndex === -1
-              ? ''
-              : commandHistory[commandHistory.length - 1 - newIndex]
-          );
+          setCommand(suggestions[suggestionIndex < suggestions.length - 1 ? suggestionIndex + 1 : -1] || '');
         }
         break;
       default:
+        setIsNavigatingHistory(false);
+        setIsScrollingSuggestions(false);
         break;
     }
   };
@@ -119,6 +156,12 @@ const CommandBar = ({
     setIsFocused(false);
     onFocusChange(false);
     setSuggestionIndex(-1);
+    setIsNavigatingHistory(false);
+    setIsScrollingSuggestions(false);
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    executeCommand(suggestion);
   };
 
   // Update global key listener to handle initial key presses
@@ -141,6 +184,13 @@ const CommandBar = ({
         inputRef.current.focus();
         const lastCommand = commandHistory[commandHistory.length - 1];
         executeCommand(lastCommand);
+      } else if (e.key === 'ArrowUp' && !isFocused && !isInputField && commandHistory.length > 0) {
+        e.preventDefault();
+        inputRef.current.focus();
+        const lastCommand = commandHistory[commandHistory.length - 1];
+        setCommand(lastCommand);
+        setHistoryIndex(0);
+        setIsNavigatingHistory(true);
       } else if (!isFocused && !isInputField) {
         const key = e.key;
         if (
@@ -184,7 +234,7 @@ const CommandBar = ({
           }`}
           placeholder="Enter command..."
         />
-        {suggestions.length > 0 && isFocused && (
+        {suggestions.length > 0 && isFocused && !isNavigatingHistory && (
           <div
             className={`absolute bottom-full left-0 w-1/4 ${
               darkMode
@@ -197,7 +247,8 @@ const CommandBar = ({
                 key={index}
                 className={`p-1 hover:bg-opacity-20 hover:bg-gray-500 ${
                   index === suggestionIndex ? 'bg-gray-500 bg-opacity-20' : ''
-                }`}
+                } cursor-pointer`}
+                onClick={() => handleSuggestionClick(suggestion)}
               >
                 {suggestion}
               </div>
