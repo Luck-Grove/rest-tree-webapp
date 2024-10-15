@@ -604,63 +604,78 @@ const ArcGISRESTTreeMap = () => {
             );
         };
 
-        const handleKeyDown = (e) => {
-            if (showPresetDropdown) {
-              switch (e.key) {
+    const handleKeyDown = (e) => {
+        if (showPresetDropdown) {
+            switch (e.key) {
                 case 'ArrowDown':
-                  e.preventDefault();
-                  setHighlightedIndex(prevIndex => 
-                    prevIndex < filteredPresets.length - 1 ? prevIndex + 1 : 0
-                  );
-                  break;
-                case 'ArrowUp':
-                  e.preventDefault();
-                  setHighlightedIndex(prevIndex => 
-                    prevIndex > 0 ? prevIndex - 1 : filteredPresets.length - 1
-                  );
-                  break;
-                case 'Enter':
-                  e.preventDefault();
-                  if (highlightedIndex !== -1) {
-                    handlePresetSelect(filteredPresets[highlightedIndex], setSelectedPreset, setUrl, setShowPresetDropdown, setHighlightedIndex);
-                  }
-                  break;
-                case 'Escape':
-                  setShowPresetDropdown(false);
-                  setHighlightedIndex(-1);
-                  break;
-                default:
-                  break;
-              }
-            } else if (showSuggestions) {
-              switch (e.key) {
-                case 'ArrowDown':
-                  e.preventDefault();
-                  setSelectedSuggestionIndex(prevIndex =>
-                    prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
-                  );
-                  break;
-                case 'ArrowUp':
-                  e.preventDefault();
-                  setSelectedSuggestionIndex(prevIndex =>
-                    prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
-                  );
-                  break;
-                case 'Enter':
-                  if (selectedSuggestionIndex !== -1) {
                     e.preventDefault();
-                    handleSuggestionClick(suggestions[selectedSuggestionIndex]);
-                  }
-                  break;
+                    setHighlightedIndex(prevIndex => {
+                        const newIndex = prevIndex < filteredPresets.length - 1 ? prevIndex + 1 : 0;
+                        scrollHighlightedItemIntoView(newIndex);
+                        return newIndex;
+                    });
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    setHighlightedIndex(prevIndex => {
+                        const newIndex = prevIndex > 0 ? prevIndex - 1 : filteredPresets.length - 1;
+                        scrollHighlightedItemIntoView(newIndex);
+                        return newIndex;
+                    });
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    if (highlightedIndex !== -1) {
+                        handlePresetSelect(filteredPresets[highlightedIndex], setSelectedPreset, setUrl, setShowPresetDropdown, setHighlightedIndex);
+                    }
+                    break;
                 case 'Escape':
-                  setShowSuggestions(false);
-                  setSelectedSuggestionIndex(-1);
-                  break;
+                    setShowPresetDropdown(false);
+                    setHighlightedIndex(-1);
+                    break;
                 default:
-                  break;
-              }
+                    break;
             }
-          };
+        } else if (showSuggestions) {
+            switch (e.key) {
+              case 'ArrowDown':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prevIndex =>
+                  prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
+                );
+                break;
+              case 'ArrowUp':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prevIndex =>
+                  prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
+                );
+                break;
+              case 'Enter':
+                if (selectedSuggestionIndex !== -1) {
+                  e.preventDefault();
+                  handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+                }
+                break;
+              case 'Escape':
+                setShowSuggestions(false);
+                setSelectedSuggestionIndex(-1);
+                break;
+              default:
+                break;
+            }
+          }
+        };
+
+    const scrollHighlightedItemIntoView = (index) => {
+        if (dropdownRef.current) {
+            const highlightedItem = dropdownRef.current.children[index];
+            if (highlightedItem) {
+                highlightedItem.scrollIntoView({
+                    block: 'nearest',
+                });
+            }
+        }
+    };
 
     return (
         <div className={`h-screen ${darkMode ? 'bg-transparent text-gray-100' : 'bg-transparent text-gray-800'}`}
