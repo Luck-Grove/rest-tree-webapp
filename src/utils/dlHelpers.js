@@ -42,8 +42,8 @@ const fetchFeatures = async (node, setStatusMessage) => {
     return allFeatures;
 };
 
-export const handleDownloadLayer = async (nodeId, treeData, setIsDownloading, setStatusMessage) => {
-    const node = treeData[nodeId];
+export const handleDownloadLayer = async (nodeId, data, setIsDownloading, setStatusMessage) => {
+    const node = data.find(layer => layer.id === nodeId) || data[nodeId];
     if (!node) return;
 
     setIsDownloading(true);
@@ -81,8 +81,8 @@ export const handleDownloadLayer = async (nodeId, treeData, setIsDownloading, se
     }
 };
 
-export const handleDownloadShapefile = async (nodeId, treeData, setIsDownloading, setStatusMessage) => {
-    const node = treeData[nodeId];
+export const handleDownloadShapefile = async (nodeId, data, setIsDownloading, setStatusMessage) => {
+    const node = data.find(layer => layer.id === nodeId) || data[nodeId];
     if (!node) return;
 
     setIsDownloading(true);

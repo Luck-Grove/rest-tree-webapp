@@ -1,59 +1,53 @@
-import React, { useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
+import React from 'react';
 
-const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile, darkMode, onClose }) => {
-    const menuRef = useRef(null);
+const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile, darkMode, onClose, isLayer, zoomToLayerExtent }) => {
+  if (!contextMenu.visible) return null;
 
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
-                onClose();
-            }
-        };
+  const menuStyle = {
+    position: 'fixed',
+    top: `${contextMenu.y}px`,
+    left: `${contextMenu.x}px`,
+    zIndex: 1000,
+  };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [onClose]);
+  const menuItemClass = `px-4 py-2 hover:bg-opacity-80 cursor-pointer ${
+    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+  }`;
 
-    if (!contextMenu.visible) return null;
+  const handleMenuItemClick = (action) => {
+    action();
+    onClose();
+  };
 
-    const menuContent = (
+  return (
+    <div
+      className={`context-menu rounded-md shadow-lg ${
+        darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'
+      }`}
+      style={menuStyle}
+    >
+      <div 
+        className={menuItemClass} 
+        onClick={() => handleMenuItemClick(handleDownloadLayer)}
+      >
+        Download as GeoJSON
+      </div>
+      <div 
+        className={menuItemClass} 
+        onClick={() => handleMenuItemClick(handleDownloadShapefile)}
+      >
+        Download as Shapefile
+      </div>
+      {isLayer && (
         <div 
-            ref={menuRef}
-            className={`fixed ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-black'} border shadow-md rounded-md py-2`}
-            style={{ 
-                top: `${contextMenu.y}px`, 
-                left: `${contextMenu.x}px`,
-                zIndex: 9999
-            }}
+          className={menuItemClass} 
+          onClick={() => handleMenuItemClick(() => zoomToLayerExtent(contextMenu.nodeId))}
         >
-            <button 
-                className={`block w-full text-left px-4 py-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                onClick={() => {
-                    handleDownloadLayer(contextMenu.nodeId);
-                    onClose();
-                }}
-            >
-                Download GeoJSON
-            </button>
-            <button 
-                className={`block w-full text-left px-4 py-2 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                onClick={() => {
-                    handleDownloadShapefile(contextMenu.nodeId);
-                    onClose();
-                }}
-            >
-                Download Shapefile
-            </button>
+          Zoom to Layer Extent
         </div>
-    );
-
-    return ReactDOM.createPortal(
-        menuContent,
-        document.body
-    );
+      )}
+    </div>
+  );
 };
 
 export default ContextMenu;

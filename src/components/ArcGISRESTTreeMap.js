@@ -10,6 +10,7 @@ import ContextMenu from './ContextMenu';
 import SearchBar from './SearchBar';
 import TreeNode from './TreeNode';
 import CommandBar from './CommandBar';
+import LayerManager from './LayerManager';
 
 import { initializeMap, updateMapLayers, updateBasemap, zoomToLayerExtent } from '../utils/mapUtils';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetSelect, handlePresetInputFocus } from '../utils/presetUtils';
@@ -26,6 +27,7 @@ const ArcGISRESTTreeMap = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [layers, setLayers] = useState([]);
     const [skipProperties, setSkipProperties] = useState(true);
     const [consoleMessages, setConsoleMessages] = useState([]);
     const [selectedPreset, setSelectedPreset] = useState('');
@@ -266,6 +268,34 @@ const ArcGISRESTTreeMap = () => {
         }
     };
 
+    const handleToggleLayer = (layerId) => {
+        setLayers(prevLayers =>
+            prevLayers.map(layer =>
+                layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
+            )
+        );
+    };
+
+    const handleRemoveLayer = (layerId) => {
+        setLayers(prevLayers => prevLayers.filter(layer => layer.id !== layerId));
+    };
+
+    const handleReorderLayers = (startIndex, endIndex) => {
+        setLayers(prevLayers => {
+            const result = Array.from(prevLayers);
+            const [removed] = result.splice(startIndex, 1);
+            result.splice(endIndex, 0, removed);
+            return result;
+        });
+    };
+
+    const handleAddLayer = (layerName) => {
+        setLayers(prevLayers => [
+            ...prevLayers,
+            { id: `custom-${Date.now()}`, name: layerName, visible: true, type: 'custom' }
+        ]);
+    };
+
     const handleAddressChange = (e) => {
         const value = e.target.value;
         setAddress(value);
@@ -359,7 +389,7 @@ const ArcGISRESTTreeMap = () => {
         });
     };
 
-    const handleContextMenuClick = (e, nodeId) => {
+    const handleContextMenuClick = (e, nodeId, isLayer = false) => {
         e.preventDefault();
         e.stopPropagation();
 
@@ -377,14 +407,15 @@ const ArcGISRESTTreeMap = () => {
                 visible: true,
                 x: pageX,
                 y: pageY,
-                nodeId: nodeId
+                nodeId: nodeId,
+                isLayer: isLayer
             });
         } else {
         }
     };
 
     const closeContextMenu = () => {
-        setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+        setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, isLayer: false });
     };
 
     const handleCommand = (command) => {
@@ -397,14 +428,15 @@ const ArcGISRESTTreeMap = () => {
         return (
             <ContextMenu 
                 contextMenu={contextMenu}
-                handleDownloadLayer={() => handleDownloadLayer(contextMenu.nodeId, treeData, setIsDownloading, setStatusMessage)}
-                handleDownloadShapefile={() => handleDownloadShapefile(contextMenu.nodeId, treeData, setIsDownloading, setStatusMessage)}
+                handleDownloadLayer={() => handleDownloadLayer(contextMenu.nodeId, contextMenu.isLayer ? layers : treeData, setIsDownloading, setStatusMessage)}
+                handleDownloadShapefile={() => handleDownloadShapefile(contextMenu.nodeId, contextMenu.isLayer ? layers : treeData, setIsDownloading, setStatusMessage)}
                 darkMode={darkMode}
                 onClose={closeContextMenu}
+                isLayer={contextMenu.isLayer}
             />
         );
     };
-
+    
     const renderTreeMap = () => {
         const rootNodes = Object.keys(filteredTreeData).filter(id => !filteredTreeData[id].parent);
         return rootNodes.map(nodeId => 
@@ -429,7 +461,6 @@ const ArcGISRESTTreeMap = () => {
             />
         );
     };
-    
 
     const renderSidePanel = () => {
         return (
@@ -720,6 +751,16 @@ const ArcGISRESTTreeMap = () => {
                 currentCommand={currentCommand}
             />
 
+            <LayerManager
+                layers={layers}
+                onToggleLayer={handleToggleLayer}
+                onRemoveLayer={handleRemoveLayer}
+                onReorderLayers={handleReorderLayers}
+                onAddLayer={handleAddLayer}
+                onContextMenu={handleContextMenuClick}
+                darkMode={darkMode}
+            />
+
             <style jsx global>{`
                     .floating-panel {
                         position: absolute;
@@ -763,11 +804,19 @@ const ArcGISRESTTreeMap = () => {
                         background-color: #ffffff;
                         color: #1f2937;
                     }
-                `}</style>
-            </div>
-        );
-    };
-
+                    .layer-manager {
+                        position: absolute;
+                        top: 12px;
+                        right: 12px;
+                        width: 300px;
+                        z-index: 1000;
+                        max-height: calc(100vh - 24px);
+                        overflow-y: auto;
+                    }
+            `}</style>
+        </div>
+    );
+};
 const setCookie = (name, value, days) => {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
     document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/';
@@ -779,5 +828,4 @@ const getCookie = (name) => {
         return parts[0] === name ? decodeURIComponent(parts[1]) : r;
     }, '');
 };
-
 export default ArcGISRESTTreeMap;
