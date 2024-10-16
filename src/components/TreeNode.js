@@ -1,13 +1,19 @@
 import React from 'react';
 
 const TreeNode = ({
-  nodeId, treeData, expandedNodes, toggleNode, selectedLayers, setSelectedLayers,
+  nodeId, treeData, expandedNodes, toggleNode, selectedLayers = [], setSelectedLayers,
   handleContextMenu, zoomToLayerExtent, darkMode, showOnlyActiveLayers,
   handleDownloadShapefile, handleDownloadGeoJSON, setContextMenu, level = 0,
 }) => {
   const node = treeData[nodeId];
   if (!node) return null;
-  if (showOnlyActiveLayers && !selectedLayers.has(nodeId) && node.type === 'layer') return null;
+  
+  const selectedLayer = Array.isArray(selectedLayers) 
+    ? selectedLayers.find(layer => layer.id === nodeId)
+    : null;
+  const isVisible = selectedLayer ? selectedLayer.visible : false;
+  
+  if (showOnlyActiveLayers && !isVisible && node.type === 'layer') return null;
 
   const childNodes = Object.entries(treeData)
     .filter(([_, data]) => data.parent === nodeId)
@@ -52,36 +58,34 @@ const TreeNode = ({
     );
   };
 
-  const handleCheckboxChange = (e) => {
-    const isChecked = e.target.checked;
-    const toggleDescendantLayers = (id, shouldAdd) => {
-      const node = treeData[id];
-      if (node.type === 'layer') {
-        setSelectedLayers(prev => {
-          const newSet = new Set(prev);
-          shouldAdd ? newSet.add(id) : newSet.delete(id);
-          return newSet;
-        });
-      }
-      Object.entries(treeData)
-        .filter(([_, data]) => data.parent === id)
-        .forEach(([childId, _]) => toggleDescendantLayers(childId, shouldAdd));
-    };
-    isLayer ? setSelectedLayers(prev => {
-      const newSet = new Set(prev);
-      isChecked ? newSet.add(nodeId) : newSet.delete(nodeId);
-      return newSet;
-    }) : toggleDescendantLayers(nodeId, isChecked);
+  const handleCheckboxChange = () => {
+    if (isLayer) {
+      setSelectedLayers(prev => {
+        const prevArray = Array.isArray(prev) ? prev : [];
+        const existingLayer = prevArray.find(layer => layer.id === nodeId);
+        if (existingLayer) {
+          return prevArray.map(layer => 
+            layer.id === nodeId ? { ...layer, visible: !layer.visible } : layer
+          );
+        } else {
+          return [...prevArray, {
+            id: nodeId,
+            name: node.text,
+            visible: true,
+            type: 'arcgis',
+            datasource: node.url || ''
+          }];
+        }
+      });
+    }
   };
 
   const getBackgroundColor = (level) => {
     if (darkMode) {
-      // Desaturated shades of blue for dark mode
       const baseColor = 40;
       const shade = Math.min(baseColor + level * 5, 50);
       return `rgb(${shade}, ${shade + 5}, ${shade + 20})`;
     } else {
-      // Shades of gray for light mode
       const baseGray = 250;
       const shade = Math.max(baseGray - level * 10, 200);
       return `rgb(${shade}, ${shade}, ${shade})`;
@@ -94,9 +98,13 @@ const TreeNode = ({
       <div className={`flex items-start justify-between p-1 rounded-md tree-node fade-in ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>
         <div className="flex items-start flex-grow min-w-0">
           <div className="flex items-center flex-shrink-0 mr-2">
-            {(isLayer || childNodes.length > 0) && (
-              <input type="checkbox" checked={isLayer ? selectedLayers.has(nodeId) : childNodes.some(child => child && selectedLayers.has(child.props.nodeId))}
-                onChange={handleCheckboxChange} className="mr-2" />
+            {isLayer && (
+              <input
+                type="checkbox"
+                checked={isVisible}
+                onChange={handleCheckboxChange}
+                className="mr-2"
+              />
             )}
             {hasChildren && (
               <button onClick={() => toggleNode(nodeId)} className="mr-2 text-xs">{isExpanded ? '▼' : '▶'}</button>

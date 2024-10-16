@@ -58,42 +58,42 @@ export const initializeMap = (mapId, darkMode) => {
 
 export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
     if (!map || !map.getZoom) {
-        console.warn('Map is not initialized properly');
-        return;
+      console.warn('Map is not initialized properly');
+      return;
     }
-
+  
     try {
-        // Remove all non-base layers
-        map.eachLayer(layer => {
-            if (!(layer instanceof L.TileLayer)) {
-                map.removeLayer(layer);
+      // Remove all non-base layers
+      map.eachLayer(layer => {
+        if (!(layer instanceof L.TileLayer)) {
+          map.removeLayer(layer);
+        }
+      });
+  
+      // Clear our managed layers
+      managedLayers.clear();
+  
+      // Add selected layers in reverse order
+      selectedLayers.slice().reverse().forEach((layer) => {
+        if (layer && layer.visible && layer.datasource) {
+          const color = layer.color || '#3388ff'; // Default Leaflet blue if color is undefined
+          const featureLayer = EsriLeaflet.featureLayer({
+            url: layer.datasource,
+            cacheLayers: false,
+            where: '1=1',
+            style: function () {
+              return { color: color };
             }
-        });
-
-        // Clear our managed layers
-        managedLayers.forEach(layer => {
-            if (map.hasLayer(layer)) {
-                map.removeLayer(layer);
-            }
-        });
-        managedLayers.clear();
-
-        // Add selected layers
-        selectedLayers.forEach(layerId => {
-            const layer = treeData[layerId];
-            if (layer && layer.url) {
-                const featureLayer = EsriLeaflet.featureLayer({
-                    url: layer.url,
-                    cacheLayers: false,
-                    where: '1=1'
-                }).addTo(map);
-                addClickEventToLayer(featureLayer, map, darkMode);
-                managedLayers.set(layerId, featureLayer);            }
-        });
+          }).addTo(map);
+          addClickEventToLayer(featureLayer, map, darkMode);
+          managedLayers.set(layer.id, featureLayer);
+        }
+      });
     } catch (error) {
-        console.error('Error updating map layers:', error);
+      console.error('Error updating map layers:', error);
     }
-};
+  };  
+  
 
 const addClickEventToLayer = (layer, map, darkMode) => {
     layer.on('click', function(e) {

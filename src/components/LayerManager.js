@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import React, { useState, useRef, memo, useLayoutEffect } from 'react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-const LayerManager = ({ layers, onToggleLayer, onRemoveLayer, onReorderLayers, onAddLayer, onContextMenu, darkMode }) => {
+const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, onReorderLayers, onAddLayer, darkMode, selectedLayerId, setSelectedLayerId }) => {
   const [newLayerName, setNewLayerName] = useState('');
   const containerRef = useRef(null);
 
@@ -10,32 +10,31 @@ const LayerManager = ({ layers, onToggleLayer, onRemoveLayer, onReorderLayers, o
     onReorderLayers(result.source.index, result.destination.index);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (containerRef.current) {
       const updatePosition = () => {
         const container = containerRef.current;
-        const maxHeight = window.innerHeight * (2/3);
-        const bottomMargin = 65; // Distance from the bottom of the drawn box
-        const minTopMargin = 120; // Minimum distance from the top of the screen
-        
-        // Calculate the initial position (starting from the bottom)
+        const maxHeight = window.innerHeight * (2 / 3);
+        const bottomMargin = 65;
+        const minTopMargin = 120;
+
         let topPosition = window.innerHeight - container.offsetHeight - bottomMargin;
-        
-        // Ensure it doesn't go below the bottom margin
         topPosition = Math.max(topPosition, window.innerHeight - maxHeight);
-        
-        // Ensure it doesn't go above the minimum top margin
         topPosition = Math.max(topPosition, minTopMargin);
-        
+
         container.style.top = `${topPosition}px`;
-        container.style.maxHeight = `${maxHeight - minTopMargin}px`; // Subtracting minimum top margin
+        container.style.maxHeight = `${maxHeight - minTopMargin}px`;
       };
 
       updatePosition();
       window.addEventListener('resize', updatePosition);
       return () => window.removeEventListener('resize', updatePosition);
     }
-  }, [layers]);
+  }, [selectedLayers]);
+
+  const handleLayerClick = (layerId) => {
+    setSelectedLayerId(layerId);
+  };
 
   return (
     <div
@@ -53,31 +52,48 @@ const LayerManager = ({ layers, onToggleLayer, onRemoveLayer, onReorderLayers, o
       <DragDropContext onDragEnd={handleDragEnd}>
         <Droppable droppableId="layers">
           {(provided) => (
-            <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-              {layers.map((layer, index) => (
-                <Draggable key={layer.id} draggableId={layer.id} index={index}>
+            <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
+              {selectedLayers.map((layer, index) => (
+                <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
                   {(provided) => (
                     <li
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      className={`flex items-center justify-between p-2 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}
-                      onContextMenu={(e) => onContextMenu(e, layer.id, true)}
+                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
+                      onClick={() => handleLayerClick(layer.id)}
                     >
                       <div className="flex items-center">
+                        <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
+                          ☰
+                        </span>
                         <input
                           type="checkbox"
                           checked={layer.visible}
-                          onChange={() => onToggleLayer(layer.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            onToggleLayer(layer.id);
+                          }}
                           className="mr-2"
                         />
-                        <span className="text-sm">{layer.name}</span>
+                        <div
+                          className="w-4 h-4 mr-2 rounded cursor-pointer"
+                          style={{ backgroundColor: layer.color || '#000' }} // Default to black if color is undefined
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Future: Open color picker
+                          }}
+                        ></div>
+                        <span className="text-sm mr-2">{layer.name || layer.text}</span>
                       </div>
                       <button
-                        onClick={() => onRemoveLayer(layer.id)}
-                        className={`px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveLayer(layer.id);
+                        }}
+                        className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
+                        style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px', padding: 0 }}
                       >
-                        Remove
+                        <span style={{ fontSize: '16px', lineHeight: '16px' }}>×</span>
                       </button>
                     </li>
                   )}
@@ -88,6 +104,9 @@ const LayerManager = ({ layers, onToggleLayer, onRemoveLayer, onReorderLayers, o
           )}
         </Droppable>
       </DragDropContext>
+      {selectedLayers.length === 0 && (
+        <div className="mb-4">No layers available.</div>
+      )}
       <div className="mt-4 flex">
         <input
           type="text"
@@ -110,6 +129,6 @@ const LayerManager = ({ layers, onToggleLayer, onRemoveLayer, onReorderLayers, o
       </div>
     </div>
   );
-};
+});
 
 export default LayerManager;

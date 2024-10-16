@@ -38,7 +38,8 @@ const ArcGISRESTTreeMap = () => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [darkMode, setDarkMode] = useState(true);
     const [map, setMap] = useState(null);
-    const [selectedLayers, setSelectedLayers] = useState(new Set());
+    const [selectedLayers, setSelectedLayers] = useState([]);
+    const [selectedLayerId, setSelectedLayerId] = useState(null);
     const [address, setAddress] = useState('');
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -268,20 +269,61 @@ const ArcGISRESTTreeMap = () => {
         }
     };
 
-    const handleToggleLayer = (layerId) => {
-        setLayers(prevLayers =>
-            prevLayers.map(layer =>
-                layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
-            )
-        );
-    };
+    // Define a color palette
+    const colorPalette = [
+        '#FFB3BA', // Pastel Red
+        '#FFDFBA', // Pastel Orange
+        '#FFFFBA', // Pastel Yellow
+        '#BAFFC9', // Pastel Green
+        '#BAE1FF', // Pastel Blue
+        '#C9C9FF', // Pastel Purple
+        '#FFB3FF', // Pastel Pink
+        '#BFFFFF', // Pastel Cyan
+        '#FFFFB3', // Pastel Light Yellow
+        '#B3FFB3', // Pastel Light Green
+      ];
+      
+    
+      const assignColorToLayer = (layerId, prevLayers) => {
+        const existingLayer = prevLayers.find(layer => layer.id === layerId);
+        if (existingLayer && existingLayer.color) {
+          return existingLayer.color; // Use existing color if already assigned
+        }
+        // Assign a new color based on the number of layers
+        const color = colorPalette[prevLayers.length % colorPalette.length];
+        return color;
+      };      
+      
+    
+      const handleToggleLayer = (layerId) => {
+        setSelectedLayers(prevLayers => {
+          const layerIndex = prevLayers.findIndex(layer => layer.id === layerId);
+          if (layerIndex !== -1) {
+            // Layer exists, toggle its visibility
+            return prevLayers.map(layer =>
+              layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
+            );
+          } else {
+            // Layer doesn't exist, add it to the top
+            const newLayer = {
+              id: layerId,
+              name: treeData[layerId]?.text || 'Unknown Layer',
+              visible: true,
+              type: 'arcgis',
+              datasource: treeData[layerId]?.url || '',
+              color: assignColorToLayer(layerId, prevLayers)
+            };
+            return [newLayer, ...prevLayers];
+          }
+        });
+      };         
 
     const handleRemoveLayer = (layerId) => {
-        setLayers(prevLayers => prevLayers.filter(layer => layer.id !== layerId));
+        setSelectedLayers(prevLayers => prevLayers.filter(layer => layer.id !== layerId));
     };
 
     const handleReorderLayers = (startIndex, endIndex) => {
-        setLayers(prevLayers => {
+        setSelectedLayers(prevLayers => {
             const result = Array.from(prevLayers);
             const [removed] = result.splice(startIndex, 1);
             result.splice(endIndex, 0, removed);
@@ -290,11 +332,20 @@ const ArcGISRESTTreeMap = () => {
     };
 
     const handleAddLayer = (layerName) => {
-        setLayers(prevLayers => [
-            ...prevLayers,
-            { id: `custom-${Date.now()}`, name: layerName, visible: true, type: 'custom' }
-        ]);
-    };
+        const newLayerId = `custom-${Date.now()}`;
+        setSelectedLayers(prevLayers => {
+          const newLayer = {
+            id: newLayerId,
+            name: layerName,
+            visible: true,
+            type: 'custom',
+            datasource: '',
+            color: assignColorToLayer(newLayerId, prevLayers)
+          };
+          return [newLayer, ...prevLayers];
+        });
+      };
+         
 
     const handleAddressChange = (e) => {
         const value = e.target.value;
@@ -708,6 +759,8 @@ const ArcGISRESTTreeMap = () => {
         }
     };
 
+    const selectedLayer = selectedLayers.find(layer => layer.id === selectedLayerId);
+
     return (
         <div className={`h-screen ${darkMode ? 'bg-transparent text-gray-100' : 'bg-transparent text-gray-800'}`}
              onClick={closeContextMenu}>
@@ -752,13 +805,14 @@ const ArcGISRESTTreeMap = () => {
             />
 
             <LayerManager
-                layers={layers}
+                selectedLayers={selectedLayers}
                 onToggleLayer={handleToggleLayer}
                 onRemoveLayer={handleRemoveLayer}
                 onReorderLayers={handleReorderLayers}
                 onAddLayer={handleAddLayer}
-                onContextMenu={handleContextMenuClick}
                 darkMode={darkMode}
+                selectedLayerId={selectedLayerId}
+                setSelectedLayerId={setSelectedLayerId}
             />
 
             <style jsx global>{`
