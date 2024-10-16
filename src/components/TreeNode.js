@@ -74,36 +74,67 @@ const TreeNode = ({
     }) : toggleDescendantLayers(nodeId, isChecked);
   };
 
+  const getBackgroundColor = (level) => {
+    if (darkMode) {
+      // Desaturated shades of blue for dark mode
+      const baseColor = 40;
+      const shade = Math.min(baseColor + level * 5, 50);
+      return `rgb(${shade}, ${shade + 5}, ${shade + 20})`;
+    } else {
+      // Shades of gray for light mode
+      const baseGray = 250;
+      const shade = Math.max(baseGray - level * 10, 200);
+      return `rgb(${shade}, ${shade}, ${shade})`;
+    }
+  };
+
   return (
     <div className="flex flex-col" style={{ marginLeft: `${level * 20}px` }}
       onContextMenu={(e) => !e.target.closest('.download-button') && handleContextMenu(e, nodeId, setContextMenu)}>
-      <div className="flex items-center justify-between p-1 rounded-md tree-node fade-in">
-        <div className="flex items-center">
-          {(isLayer || childNodes.length > 0) && (
-            <input type="checkbox" checked={isLayer ? selectedLayers.has(nodeId) : childNodes.some(child => child && selectedLayers.has(child.props.nodeId))}
-              onChange={handleCheckboxChange} className="mr-2" />
-          )}
-          {hasChildren && (
-            <button onClick={() => toggleNode(nodeId)} className="mr-2 text-xs">{isExpanded ? '▼' : '▶'}</button>
-          )}
-          <span className="mr-2">{getIcon(node.type)}</span>
-          <span className="font-medium text-sm">{node.text}</span>
-          <span className="ml-2 text-xs text-gray-500">({node.type})</span>
+      <div className={`flex items-start justify-between p-1 rounded-md tree-node fade-in ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>
+        <div className="flex items-start flex-grow min-w-0">
+          <div className="flex items-center flex-shrink-0 mr-2">
+            {(isLayer || childNodes.length > 0) && (
+              <input type="checkbox" checked={isLayer ? selectedLayers.has(nodeId) : childNodes.some(child => child && selectedLayers.has(child.props.nodeId))}
+                onChange={handleCheckboxChange} className="mr-2" />
+            )}
+            {hasChildren && (
+              <button onClick={() => toggleNode(nodeId)} className="mr-2 text-xs">{isExpanded ? '▼' : '▶'}</button>
+            )}
+            <span className="mr-2">{getIcon(node.type)}</span>
+          </div>
+          <div className="flex flex-col min-w-0 flex-grow">
+            <span className="font-medium text-xs break-words">{node.text}</span>
+            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} break-words`}>({node.type})</span>
+          </div>
         </div>
         {isLayer && (
           <button onClick={(e) => { e.stopPropagation(); handleDownloadShapefile(nodeId); }}
-            className={`download-button flex flex-col items-center p-1 ${darkMode ? 'text-gray-200 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}
+            className={`download-button flex flex-col items-center p-1 ml-2 flex-shrink-0 rounded-md ${
+              darkMode 
+                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white' 
+                : 'bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-800'
+            }`}
+            style={{ padding: '4px 6px' }}
             title="Download Shapefile">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M13 7h-2V3H9v4H7l3 3 3-3z"></path>
               <path d="M5 13h10v2H5v-2z"></path>
             </svg>
-            <span className="text-xs">SHP</span>
+            <span className="text-2xs">SHP</span>
           </button>
         )}
       </div>
-      {isExpanded && (
-        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-screen fade-in' : 'max-h-0'}`}>
+      {isExpanded && childNodes.length > 0 && (
+        <div 
+          className={`overflow-y-auto transition-all duration-300 ease-in-out rounded-md ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}
+          style={{
+            maxHeight: '500px',
+            backgroundColor: getBackgroundColor(level + 1),
+            marginTop: '4px',
+            marginBottom: '4px',
+          }}
+        >
           {childNodes}
         </div>
       )}
