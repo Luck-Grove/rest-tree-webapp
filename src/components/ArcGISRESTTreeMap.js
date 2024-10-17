@@ -23,6 +23,7 @@ import bboxCommand from '../commands/bbox';
 
 const ArcGISRESTTreeMap = () => {
     const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
+    const previousBaseUrlRef = useRef(null);
     const [treeData, setTreeData] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -245,16 +246,23 @@ const ArcGISRESTTreeMap = () => {
     const generateTreeMap = async () => {
         setLoading(true);
         setError(null);
-
-        setExpandedNodes(new Set());
-        setProcessedUrls(new Set()); // Clear processed URLs
-      
+    
+        const baseUrl = url.trim();
+    
+        // Check if the base URL has changed
+        if (previousBaseUrlRef.current !== baseUrl) {
+          setTreeData({}); // Clear previous tree data when the base URL changes
+          setExpandedNodes(new Set());
+          setProcessedUrls(new Set());
+          previousBaseUrlRef.current = baseUrl; // Update the previous base URL
+        }
+    
         const controller = new AbortController();
         setAbortController(controller);
-      
+    
         try {
           await fetchAndDisplayServices(
-            url,
+            baseUrl,
             '',
             controller.signal,
             setTreeData,
@@ -267,10 +275,11 @@ const ArcGISRESTTreeMap = () => {
           );
         } catch (err) {
           // Handle error
+          setError(err.message);
         } finally {
           setLoading(false);
           setAbortController(null);
-          addConsoleMessage("Operation complete.")
+          addConsoleMessage("Operation complete.");
         }
       };
       
