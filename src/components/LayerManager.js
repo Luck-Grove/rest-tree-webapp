@@ -21,16 +21,9 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
     const rect = e.target.getBoundingClientRect();
     const pickerWidth = 200; // Adjusted width to fit labels
     const pickerHeight = 150; // Adjusted height for color labels
-    const spaceAbove = rect.top;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    
-    let x = rect.left - pickerWidth + window.scrollX;
-    let y = rect.top + window.scrollY;
-  
-    if (spaceBelow < pickerHeight && spaceAbove >= pickerHeight) {
-      y = rect.top - pickerHeight + window.scrollY;
-    }
-  
+    const x = rect.left - pickerWidth + window.scrollX;
+    const y = rect.top - pickerHeight - 20 + window.scrollY; // Offset more upwards
+
     setColorPickerPosition({ x, y });
     setColorPickerLayerId(layerId);
     setColorPickerVisible(true);
@@ -103,7 +96,7 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
         zIndex: 1000,
       }}
     >
-      <h3 className="text-base font-semibold mb-4">Layer Manager</h3>
+      <h3 className="text-sm font-semibold mb-4">Layers</h3>
       <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
         <DragDropContext onDragEnd={handleDragEnd}>
           <Droppable droppableId="layers">
@@ -133,10 +126,10 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
                           />
                           <div
                             className="w-4 h-4 mr-2 rounded cursor-pointer"
-                            style={{ backgroundColor: layer.color || '#000' }}
+                            style={{ backgroundColor: layer.color || '#000', minWidth: '16px', minHeight: '16px' }}
                             onClick={(e) => handleColorBoxClick(e, layer.id)}
                           ></div>
-                          <span className="text-sm mr-2">{layer.name || layer.text}</span>
+                          <span className="text-xs mr-2">{layer.name || layer.text}</span>
                         </div>
                         <button
                           onClick={(e) => {
@@ -159,14 +152,14 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
         </DragDropContext>
       </div>
       {selectedLayers.length === 0 && (
-        <div className="mb-4">No layers available.</div>
+        <div className="mb-4">No layers.</div>
       )}
       <div className="mt-4 flex">
         <input
           type="text"
           value={newLayerName}
           onChange={(e) => setNewLayerName(e.target.value)}
-          placeholder="New layer name"
+          placeholder="New custom layer..."
           className={`flex-grow px-2 py-1 rounded-md mr-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-800'}`}
         />
         <button
@@ -196,6 +189,15 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
             }}
             ref={colorPickerRef}
           >
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-semibold" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>Colors</h4>
+              <button
+                onClick={() => setColorPickerVisible(false)}
+                className="text-xs p-1 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700"
+              >
+                ✕
+              </button>
+            </div>
             {Object.entries(colorGroups).map(([groupName, colors]) => (
               <div key={groupName} className="mb-2">
                 <h4 className="text-xs font-semibold mb-1" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>{groupName}</h4>
@@ -204,7 +206,7 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
                     <div
                       key={colorOption}
                       className="w-5 h-5 rounded cursor-pointer"
-                      style={{ backgroundColor: colorOption }}
+                      style={{ backgroundColor: colorOption, minWidth: '20px', minHeight: '20px' }}
                       onClick={() => handleColorSelect(colorOption)}
                     ></div>
                   ))}
