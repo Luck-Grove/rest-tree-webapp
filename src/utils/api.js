@@ -57,84 +57,268 @@ export const fetchWithCache = async (url, params = {}, useCache = true) => {
     return rateLimiter.enqueue(fetchData);
 };
 
-export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers) => {
+export const fetchAndDisplayServices = async (
+    url,
+    parent,
+    signal,
+    setTreeData,
+    addConsoleMessage,
+    skipProperties,
+    assignColorToLayer,
+    selectedLayers,
+    processedUrls,
+    treeData
+  ) => {
     if (signal.aborted) {
-        throw new Error('Operation was cancelled');
+      throw new Error('Operation was cancelled');
     }
-    
-    writeToConsole(<React.Fragment>Processing content for <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{url}</a></React.Fragment>, addConsoleMessage);
+  
+    // Check if the URL has already been processed
+    if (processedUrls.has(url)) {
+      return;
+    }
+  
+    // Add the URL to the processed set
+    processedUrls.add(url);
+
+    // Truncate URL for display
+    const truncateUrl = (url) => {
+        const baseUrlPattern = /\/services\/?/;
+        const match = url.match(baseUrlPattern);
+        if (match) {
+          const truncatedPart = url.split(baseUrlPattern)[1];
+          if (truncatedPart && truncatedPart.trim().length > 0) {
+            return truncatedPart; 
+          }
+        }
+        return url;
+      };
+      
+  
+    // Output console message only for new content
+    const truncatedUrl = truncateUrl(url);
+    writeToConsole(
+      <React.Fragment>
+        Processing content for{' '}
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+          {truncatedUrl}
+        </a>
+      </React.Fragment>,
+      addConsoleMessage
+    );
+  
     try {
-        const data = await fetchWithCache(url, { f: 'json' });
-
-        if (data.services) {
-            for (const service of data.services) {
-                if (signal.aborted) throw new Error('Operation was cancelled');
-                await processService(parent, service, url, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers);
-            }
+      const data = await fetchWithCache(url, { f: 'json' });
+  
+      // Process services
+      if (data.services) {
+        for (const service of data.services) {
+          if (signal.aborted) throw new Error('Operation was cancelled');
+          await processService(
+            parent,
+            service,
+            url,
+            signal,
+            setTreeData,
+            addConsoleMessage,
+            skipProperties,
+            assignColorToLayer,
+            selectedLayers,
+            processedUrls,
+            treeData
+          );
         }
-
-        if (data.layers) {
-            const serviceId = parent;
-            for (const layer of data.layers) {
-                if (signal.aborted) throw new Error('Operation was cancelled');
-                const layerId = getNextId();
-                const layerText = `${layer.name} (ID: ${layer.id})`;
-                const layerUrl = `${url}/${layer.id}`;
-                const layerColor = assignColorToLayer(layerId, selectedLayers);
-                setTreeData(prevData => {
-                    const newData = addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId, prevData);
-                    newData[layerId].color = layerColor;
-                    return newData;
-                });
-            }
-            setTreeData(prevData => ({
-                ...prevData,
-                [parent]: { ...prevData[parent], hasChildren: true }
-            }));
+      }
+  
+      // Process layers
+      if (data.layers) {
+        const serviceId = parent;
+        for (const layer of data.layers) {
+          if (signal.aborted) throw new Error('Operation was cancelled');
+  
+          // Check if the layer already exists in treeData
+          const existingLayer = Object.values(treeData).find(
+            (node) => node.url === `${url}/${layer.id}`
+          );
+          if (existingLayer) {
+            continue;
+          }
+  
+          const layerId = getNextId();
+          const layerText = `${layer.name} (ID: ${layer.id})`;
+          const layerUrl = `${url}/${layer.id}`;
+          const layerColor = assignColorToLayer(layerId, selectedLayers);
+  
+          setTreeData((prevData) => {
+            const newData = addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId, prevData);
+            newData[layerId].color = layerColor;
+            return newData;
+          });
+  
+          // Update treeData with the new data for recursive calls
+          treeData = {
+            ...treeData,
+            [layerId]: {
+              text: layerText,
+              parent: serviceId,
+              type: 'layer',
+              url: layerUrl,
+              hasChildren: false,
+              color: layerColor,
+            },
+          };
         }
-
-        if (data.folders) {
-            for (const folder of data.folders) {
-                if (signal.aborted) throw new Error('Operation was cancelled');
-                const folderId = getNextId();
-                const folderUrl = new URL(folder, url).href;
-                setTreeData(prevData => addTreeNode(parent, folder, 'folder', folderUrl, folderId, prevData));
-                await fetchAndDisplayServices(folderUrl, folderId, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers);
-            }
+        setTreeData((prevData) => ({
+          ...prevData,
+          [parent]: { ...prevData[parent], hasChildren: true },
+        }));
+  
+        // Update treeData with the updated parent
+        treeData = {
+          ...treeData,
+          [parent]: { ...treeData[parent], hasChildren: true },
+        };
+      }
+  
+      // Process folders
+      if (data.folders) {
+        for (const folder of data.folders) {
+          if (signal.aborted) throw new Error('Operation was cancelled');
+  
+          const folderUrl = new URL(folder, url).href;
+          const existingFolder = Object.values(treeData).find((node) => node.url === folderUrl);
+          if (existingFolder) {
+            continue;
+          }
+  
+          const folderId = getNextId();
+  
+          setTreeData((prevData) => addTreeNode(parent, folder, 'folder', folderUrl, folderId, prevData));
+  
+          // Update treeData with the new folder for recursive calls
+          treeData = {
+            ...treeData,
+            [folderId]: {
+              text: folder,
+              parent: parent,
+              type: 'folder',
+              url: folderUrl,
+              hasChildren: false,
+            },
+          };
+  
+          await fetchAndDisplayServices(
+            folderUrl,
+            folderId,
+            signal,
+            setTreeData,
+            addConsoleMessage,
+            skipProperties,
+            assignColorToLayer,
+            selectedLayers,
+            processedUrls,
+            treeData
+          );
         }
-
-        if (!skipProperties) {
-            for (const [key, value] of Object.entries(data)) {
-                if (['string', 'number', 'boolean'].includes(typeof value)) {
-                    const propId = getNextId();
-                    const propText = `${key}: ${value}`;
-                    setTreeData(prevData => addTreeNode(parent, propText, 'property', 'N/A', propId, prevData));
-                }
+      }
+  
+      // Process properties
+      if (!skipProperties) {
+        for (const [key, value] of Object.entries(data)) {
+          if (['string', 'number', 'boolean'].includes(typeof value)) {
+            const propText = `${key}: ${value}`;
+            const existingProp = Object.values(treeData).find(
+              (node) => node.text === propText && node.parent === parent
+            );
+            if (existingProp) {
+              continue;
             }
+  
+            const propId = getNextId();
+  
+            setTreeData((prevData) => addTreeNode(parent, propText, 'property', 'N/A', propId, prevData));
+  
+            // Update treeData with the new property
+            treeData = {
+              ...treeData,
+              [propId]: {
+                text: propText,
+                parent: parent,
+                type: 'property',
+                url: 'N/A',
+                hasChildren: false,
+              },
+            };
+          }
         }
+      }
     } catch (error) {
-        if (error.name === 'AbortError' || error.message === 'Operation was cancelled') {
-            throw new Error('Operation was cancelled');
-        }
-        writeToConsole(`Error fetching services: ${error.message}`, addConsoleMessage);
-        throw error;
-    }
-};
-
-export const processService = async (parent, service, baseUrl, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers) => {
-    if (signal.aborted) {
+      if (error.name === 'AbortError' || error.message === 'Operation was cancelled') {
         throw new Error('Operation was cancelled');
+      }
+      writeToConsole(`Error fetching services: ${error.message}`, addConsoleMessage);
+      throw error;
     }
+  };
 
+  
+  export const processService = async (
+    parent,
+    service,
+    baseUrl,
+    signal,
+    setTreeData,
+    addConsoleMessage,
+    skipProperties,
+    assignColorToLayer,
+    selectedLayers,
+    processedUrls,
+    treeData
+  ) => {
+    if (signal.aborted) {
+      throw new Error('Operation was cancelled');
+    }
+  
     const serviceUrl = new URL(`${service.name}/${service.type}`, baseUrl).href;
+  
+    // Check if service already exists in treeData
+    const existingService = Object.values(treeData).find((node) => node.url === serviceUrl);
+    if (existingService) {
+      return; // Skip processing
+    }
+  
     const serviceText = `${service.name} (${service.type})`;
     const serviceId = getNextId();
-    setTreeData(prevData => addTreeNode(parent, serviceText, service.type, serviceUrl, serviceId, prevData));
-    
+  
+    setTreeData((prevData) => addTreeNode(parent, serviceText, service.type, serviceUrl, serviceId, prevData));
+  
+    // Update treeData with the new service for recursive calls
+    treeData = {
+      ...treeData,
+      [serviceId]: {
+        text: serviceText,
+        parent: parent,
+        type: service.type,
+        url: serviceUrl,
+        hasChildren: false,
+      },
+    };
+  
     if (service.type === 'MapServer' || service.type === 'FeatureServer') {
-        await fetchAndDisplayServices(serviceUrl, serviceId, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers);
+      await fetchAndDisplayServices(
+        serviceUrl,
+        serviceId,
+        signal,
+        setTreeData,
+        addConsoleMessage,
+        skipProperties,
+        assignColorToLayer,
+        selectedLayers,
+        processedUrls,
+        treeData
+      );
     }
-};
+  };
 
 // Function to write to the console
 export const writeToConsole = (message, addConsoleMessage) => {

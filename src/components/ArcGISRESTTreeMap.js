@@ -29,6 +29,7 @@ const ArcGISRESTTreeMap = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [layers, setLayers] = useState([]);
     const [skipProperties, setSkipProperties] = useState(true);
+    const [processedUrls, setProcessedUrls] = useState(new Set());
     const [consoleMessages, setConsoleMessages] = useState([]);
     const [selectedPreset, setSelectedPreset] = useState('');
     const [expandedNodes, setExpandedNodes] = useState(new Set());
@@ -75,8 +76,11 @@ const ArcGISRESTTreeMap = () => {
     }, []);
 
     useEffect(() => {
-        setFilteredTreeData(treeData);
-    }, [treeData]);
+        setFilteredTreeData(filterTreeData(treeData, searchTerm));
+        if (searchTerm !== '') {
+            expandAll(setExpandedNodes, treeData);
+        }
+    }, [treeData, searchTerm]);    
 
     useEffect(() => {
         const mapInstance = initializeMap('map', darkMode);
@@ -152,9 +156,9 @@ const ArcGISRESTTreeMap = () => {
 
     useEffect(() => {
         if (map && isMapReady) {
-          updateMapLayers(map, selectedLayers, treeData, darkMode);
+          updateMapLayers(map, selectedLayers, darkMode);
         }
-    }, [selectedLayers, map, darkMode, treeData, isMapReady]);
+    }, [selectedLayers, map, darkMode, isMapReady]);
 
     useEffect(() => {
         const savedDarkMode = getCookie('darkMode');
@@ -233,43 +237,43 @@ const ArcGISRESTTreeMap = () => {
     const handleSearchChange = (e) => {
         const searchTerm = e.target.value;
         setSearchTerm(searchTerm);
-        setFilteredTreeData(filterTreeData(treeData, searchTerm));
         if (searchTerm !== '') {
             expandAll(setExpandedNodes, treeData);
         }
-    };
+    };    
 
     const generateTreeMap = async () => {
         setLoading(true);
         setError(null);
-        setTreeData({});
-        setConsoleMessages([]);
+
         setExpandedNodes(new Set());
-        
+        setProcessedUrls(new Set()); // Clear processed URLs
+      
         const controller = new AbortController();
         setAbortController(controller);
-    
+      
         try {
-            await fetchAndDisplayServices(
-                url, 
-                '', 
-                controller.signal, 
-                setTreeData, 
-                addConsoleMessage, 
-                skipProperties,
-                assignColorToLayer,
-                selectedLayers
-            );
+          await fetchAndDisplayServices(
+            url,
+            '',
+            controller.signal,
+            setTreeData,
+            addConsoleMessage,
+            skipProperties,
+            assignColorToLayer,
+            selectedLayers,
+            processedUrls,
+            treeData
+          );
         } catch (err) {
-            if (!controller.signal.aborted) {
-                setError(err.message);
-                addConsoleMessage(`An error occurred: ${err.message}`);
-            }
+          // Handle error
         } finally {
-            setLoading(false);
-            setAbortController(null);
+          setLoading(false);
+          setAbortController(null);
+          addConsoleMessage("Operation complete.")
         }
-    };
+      };
+      
     
     const handleStopProcessing = () => {
         if (abortController) {

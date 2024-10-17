@@ -56,7 +56,7 @@ export const initializeMap = (mapId, darkMode) => {
     return mapInstance;
 };
 
-export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
+export const updateMapLayers = (map, selectedLayers, darkMode) => {
     if (!map || !map.getZoom) {
       console.warn('Map is not initialized properly');
       return;
