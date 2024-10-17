@@ -468,6 +468,7 @@ const ArcGISRESTTreeMap = () => {
 
         const node = treeData[nodeId];
         if (node && node.type === 'layer') {
+            addConsoleMessage("Context menu opened.");
             const { pageX, pageY } = e;
 
             setContextMenu({

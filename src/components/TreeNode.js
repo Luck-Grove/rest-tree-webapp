@@ -95,7 +95,12 @@ const TreeNode = ({
 
   return (
     <div className="flex flex-col" style={{ marginLeft: `${level * 20}px` }}
-      onContextMenu={(e) => !e.target.closest('.download-button') && handleContextMenu(e, node, setContextMenu)}>
+      onContextMenu={(e) => {
+        if (!e.target.closest('.download-button')) {
+          e.preventDefault();
+          handleContextMenu(e, nodeId, node.type === 'layer');
+        }
+      }}>
       <div className={`flex items-start justify-between p-1 rounded-md tree-node fade-in ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>
         <div className="flex items-start flex-grow min-w-0">
           <div className="flex items-center flex-shrink-0 mr-2">
