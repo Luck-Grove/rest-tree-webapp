@@ -94,7 +94,7 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
   return (
     <div
       ref={containerRef}
-      className={`layer-manager ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} p-4 rounded-md shadow-md fixed right-4 overflow-y-auto`}
+      className={`layer-manager ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} p-4 rounded-md shadow-md fixed right-4`}
       style={{
         backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.8)' : 'rgba(255, 255, 255, 0.8)',
         fontSize: '0.875rem',
@@ -104,58 +104,60 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
       }}
     >
       <h3 className="text-base font-semibold mb-4">Layer Manager</h3>
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="layers">
-          {(provided) => (
-            <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
-              {selectedLayers.map((layer, index) => (
-                <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
-                  {(provided) => (
-                    <li
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
-                      onClick={() => handleLayerClick(layer.id)}
-                    >
-                      <div className="flex items-center">
-                        <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
-                          ☰
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={layer.visible}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            onToggleLayer(layer.id);
-                          }}
-                          className="mr-2"
-                        />
-                        <div
-                          className="w-4 h-4 mr-2 rounded cursor-pointer"
-                          style={{ backgroundColor: layer.color || '#000' }}
-                          onClick={(e) => handleColorBoxClick(e, layer.id)}
-                        ></div>
-                        <span className="text-sm mr-2">{layer.name || layer.text}</span>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveLayer(layer.id);
-                        }}
-                        className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
-                        style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+      <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="layers">
+            {(provided) => (
+              <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
+                {selectedLayers.map((layer, index) => (
+                  <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
+                    {(provided) => (
+                      <li
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
+                        onClick={() => handleLayerClick(layer.id)}
                       >
-                        <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
-                      </button>
-                    </li>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </ul>
-          )}
-        </Droppable>
-      </DragDropContext>
+                        <div className="flex items-center">
+                          <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
+                            ☰
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={layer.visible}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              onToggleLayer(layer.id);
+                            }}
+                            className="mr-2"
+                          />
+                          <div
+                            className="w-4 h-4 mr-2 rounded cursor-pointer"
+                            style={{ backgroundColor: layer.color || '#000' }}
+                            onClick={(e) => handleColorBoxClick(e, layer.id)}
+                          ></div>
+                          <span className="text-sm mr-2">{layer.name || layer.text}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveLayer(layer.id);
+                          }}
+                          className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
+                          style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+                        >
+                          <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
+                        </button>
+                      </li>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </ul>
+            )}
+          </Droppable>
+        </DragDropContext>
+      </div>
       {selectedLayers.length === 0 && (
         <div className="mb-4">No layers available.</div>
       )}
