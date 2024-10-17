@@ -183,20 +183,36 @@ export const updateBasemap = (map, basemap, darkMode) => {
     updatePageBackgroundColor(basemap);
 };
 
-export const zoomToLayerExtent = (layerId, treeData, map) => {
-    const layer = treeData[layerId];
-    if (layer && layer.url && map) {
-        EsriLeaflet.query({
-            url: layer.url
-        }).bounds(function(error, latLngBounds) {
-            if (error) {
-                console.error('Error getting layer extent:', error);
-                return;
-            }
-            if (latLngBounds) {
+export const zoomToLayerExtent = async (layerId, treeData, map) => {
+    try {
+        const layer = treeData[layerId];
+        if (layer && layer.url && map) {
+            const query = EsriLeaflet.query({ url: layer.url });
+
+            const latLngBounds = await new Promise((resolve, reject) => {
+                query.run((error, featureCollection) => {
+                    if (error) {
+                        console.error('Error getting layer extent:', error);
+                        reject(error);
+                    } else if (featureCollection && featureCollection.features.length > 0) {
+                        const bounds = L.geoJSON(featureCollection).getBounds();
+                        resolve(bounds);
+                    } else {
+                        reject('No features found for layer.');
+                    }
+                });
+            });
+
+            if (latLngBounds.isValid()) {
                 map.fitBounds(latLngBounds);
+            } else {
+                console.warn('No valid bounds found for layer:', layerId);
             }
-        });
+        } else {
+            console.warn('Invalid layer or map instance. Cannot zoom to extent.');
+        }
+    } catch (error) {
+        console.error('Failed to zoom to layer extent:', error);
     }
 };
 
