@@ -250,7 +250,16 @@ const ArcGISRESTTreeMap = () => {
         setAbortController(controller);
     
         try {
-            await fetchAndDisplayServices(url, '', controller.signal, setTreeData, addConsoleMessage, skipProperties);
+            await fetchAndDisplayServices(
+                url, 
+                '', 
+                controller.signal, 
+                setTreeData, 
+                addConsoleMessage, 
+                skipProperties,
+                assignColorToLayer,
+                selectedLayers
+            );
         } catch (err) {
             if (!controller.signal.aborted) {
                 setError(err.message);
@@ -272,67 +281,80 @@ const ArcGISRESTTreeMap = () => {
     const pastelColors = [
         '#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF',
         '#C9C9FF', '#FFB3FF', '#BFFFFF', '#FFFFB3', '#B3FFB3',
-      ];
+    ];
       
-      const allColors = [
+    const allColors = [
         ...pastelColors,
         '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF',
         '#C0C0C0', '#808080', '#800000', '#808000', '#008000', '#800080',
-      ];
+    ];
       
-      const assignColorToLayer = (layerId, prevLayers) => {
+    const assignColorToLayer = (layerId, prevLayers) => {
         const assignedColors = prevLayers.map(layer => layer.color).filter(Boolean);
       
         // Try to assign an unused pastel color
         for (let color of pastelColors) {
-          if (!assignedColors.includes(color)) {
-            return color;
-          }
+            if (!assignedColors.includes(color)) {
+                return color;
+            }
         }
       
         // If all pastel colors are used, assign an unused color from allColors
         for (let color of allColors) {
-          if (!assignedColors.includes(color)) {
-            return color;
-          }
+            if (!assignedColors.includes(color)) {
+                return color;
+            }
         }
       
         // If all colors are used, generate a random color
         const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
         return randomColor;
-      };      
+    }; 
 
-      const handleLayerColorChange = (layerId, newColor) => {
+    const handleLayerColorChange = (layerId, newColor) => {
         setSelectedLayers(prevLayers =>
-          prevLayers.map(layer =>
-            layer.id === layerId ? { ...layer, color: newColor } : layer
-          )
+            prevLayers.map(layer =>
+                layer.id === layerId ? { ...layer, color: newColor } : layer
+            )
         );
-      };
+        setTreeData(prevData => ({
+            ...prevData,
+            [layerId]: { ...prevData[layerId], color: newColor }
+        }));
+    };
     
-      const handleToggleLayer = (layerId) => {
+    const handleToggleLayer = (layerId) => {
         setSelectedLayers(prevLayers => {
             const layerIndex = prevLayers.findIndex(layer => layer.id === layerId);
             if (layerIndex !== -1) {
-                // Layer exists, toggle its visibility
+                // Layer exists in selectedLayers, toggle its visibility
                 return prevLayers.map(layer =>
                     layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
                 );
-            } else {
-                // Layer doesn't exist, add it to the top
-                const newLayer = {
-                    id: layerId,
-                    name: treeData[layerId]?.text || 'Unknown Layer',
-                    visible: true,
-                    type: 'arcgis',
-                    datasource: treeData[layerId]?.url || '',
-                    color: assignColorToLayer(layerId, prevLayers)
-                };
-                return [newLayer, ...prevLayers];
+            } else if (treeData[layerId]) {
+                // Layer exists in treeData but not in selectedLayers, add it
+                return addLayerToSelected(layerId, prevLayers);
             }
+            // If the layer doesn't exist in treeData, don't add it
+            return prevLayers;
         });
     };
-         
+
+    const addLayerToSelected = (layerId, prevLayers) => {
+        addConsoleMessage("addLayerToSelected");
+        if (treeData[layerId]) {
+            const newLayer = {
+                id: layerId,
+                name: treeData[layerId].text || 'Unknown Layer',
+                visible: true,
+                type: 'arcgis',
+                datasource: treeData[layerId].url || '',
+                color: treeData[layerId].color || assignColorToLayer(layerId, prevLayers)
+            };
+            return [newLayer, ...prevLayers];
+        }
+        return prevLayers;
+    };
 
     const handleRemoveLayer = (layerId) => {
         setSelectedLayers(prevLayers => prevLayers.filter(layer => layer.id !== layerId));
@@ -350,17 +372,17 @@ const ArcGISRESTTreeMap = () => {
     const handleAddLayer = (layerName) => {
         const newLayerId = `custom-${Date.now()}`;
         setSelectedLayers(prevLayers => {
-          const newLayer = {
-            id: newLayerId,
-            name: layerName,
-            visible: true,
-            type: 'custom',
-            datasource: '',
-            color: assignColorToLayer(newLayerId, prevLayers)
-          };
-          return [newLayer, ...prevLayers];
+            const newLayer = {
+                id: newLayerId,
+                name: layerName,
+                visible: true,
+                type: 'custom',
+                datasource: '',
+                color: assignColorToLayer(newLayerId, prevLayers)
+            };
+            return [newLayer, ...prevLayers];
         });
-      };
+    };
          
 
     const handleAddressChange = (e) => {
@@ -515,38 +537,39 @@ const ArcGISRESTTreeMap = () => {
 	};
       
     
-	const renderTreeMap = () => {
-		const rootNodes = Object.keys(filteredTreeData).filter(id => !filteredTreeData[id].parent);
-		return rootNodes.map(nodeId => 
-			<TreeNode
-				key={nodeId}
-				nodeId={nodeId}
-				treeData={filteredTreeData}
-				expandedNodes={expandedNodes}
-				toggleNode={(id) => toggleNode(setExpandedNodes, id)}
-				selectedLayers={selectedLayers}
-				setSelectedLayers={setSelectedLayers}
-				handleContextMenu={handleContextMenuClick}
-				darkMode={darkMode}
-				showOnlyActiveLayers={showOnlyActiveLayers}
-				handleDownloadShapefile={(node) => handleDownloadShapefile(
-					node,
-					setIsDownloading,
-					setStatusMessage
-				)}
-				handleDownloadGeoJSON={(node) => handleDownloadLayer(
-					node,
-					setIsDownloading,
-					setStatusMessage
-				)}
-				map={map}
-				zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
-				level={0}
-				setIsDownloading={setIsDownloading}
-				setStatusMessage={setStatusMessage}
-			/>
-		);
-	};
+    const renderTreeMap = () => {
+        const rootNodes = Object.keys(filteredTreeData).filter(id => !filteredTreeData[id].parent);
+        return rootNodes.map(nodeId => 
+            <TreeNode
+                key={nodeId}
+                nodeId={nodeId}
+                treeData={filteredTreeData}
+                expandedNodes={expandedNodes}
+                toggleNode={(id) => toggleNode(setExpandedNodes, id)}
+                selectedLayers={selectedLayers}
+                setSelectedLayers={setSelectedLayers}
+                handleContextMenu={handleContextMenuClick}
+                darkMode={darkMode}
+                showOnlyActiveLayers={showOnlyActiveLayers}
+                handleDownloadShapefile={(node) => handleDownloadShapefile(
+                    node,
+                    setIsDownloading,
+                    setStatusMessage
+                )}
+                handleDownloadGeoJSON={(node) => handleDownloadLayer(
+                    node,
+                    setIsDownloading,
+                    setStatusMessage
+                )}
+                map={map}
+                zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
+                level={0}
+                setIsDownloading={setIsDownloading}
+                setStatusMessage={setStatusMessage}
+                assignColorToLayer={assignColorToLayer}
+            />
+        );
+    };
 
     const renderSidePanel = () => {
         return (

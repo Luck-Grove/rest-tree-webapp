@@ -9,47 +9,33 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
   const [colorPickerLayerId, setColorPickerLayerId] = useState(null);
 
-  const basicColorPalette = [
-    // Pastel Colors
-    '#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF',
-    '#C9C9FF', '#FFB3FF', '#BFFFFF', '#FFFFB3', '#B3FFB3',
-    // Primary and Secondary Colors
-    '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#4B0082', '#EE82EE',
-    // Shades of Gray
-    '#FFFFFF', '#C0C0C0', '#808080', '#404040', '#000000',
-    // Additional Colors
-    '#800000', '#FF69B4', '#FFD700', '#00FF00', '#00FFFF', '#00008B', '#8A2BE2',
-    // Add more colors as desired
-  ];
+  const colorGroups = {
+    'Pastel Colors': ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#C9C9FF', '#FFB3FF', '#BFFFFF', '#FFFFB3', '#B3FFB3'],
+    'Primary & Secondary Colors': ['#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#4B0082', '#EE82EE'],
+    'Shades of Gray': ['#FFFFFF', '#C0C0C0', '#808080', '#404040', '#000000'],
+    'Additional Colors': ['#800000', '#FF69B4', '#FFD700', '#00FF00', '#00FFFF', '#00008B', '#8A2BE2'],
+  };
 
   const handleColorBoxClick = (e, layerId) => {
     e.stopPropagation();
     const rect = e.target.getBoundingClientRect();
-    const pickerWidth = 150; // Approximate width of the color picker
-    const pickerHeight = 100; // Approximate height of the color picker
-    const spaceOnLeft = rect.left;
-    const spaceOnRight = window.innerWidth - rect.right;
+    const pickerWidth = 200; // Adjusted width to fit labels
+    const pickerHeight = 150; // Adjusted height for color labels
     const spaceAbove = rect.top;
     const spaceBelow = window.innerHeight - rect.bottom;
-  
-    let x = rect.right + window.scrollX; // Default position to the right
-    let y = rect.top + window.scrollY;   // Align with the top of the color box
-  
-    if (spaceOnRight < pickerWidth && spaceOnLeft >= pickerWidth) {
-      // Not enough space on the right, but enough on the left
-      x = rect.left - pickerWidth + window.scrollX;
-    }
+    
+    let x = rect.left - pickerWidth + window.scrollX;
+    let y = rect.top + window.scrollY;
   
     if (spaceBelow < pickerHeight && spaceAbove >= pickerHeight) {
-      // Not enough space below, but enough above
       y = rect.top - pickerHeight + window.scrollY;
     }
   
     setColorPickerPosition({ x, y });
     setColorPickerLayerId(layerId);
     setColorPickerVisible(true);
-  };  
-  
+  };
+
   const handleColorSelect = (color) => {
     onLayerColorChange(colorPickerLayerId, color);
     setColorPickerVisible(false);
@@ -101,7 +87,6 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
     };
   }, [colorPickerVisible]);
   
-
   const handleLayerClick = (layerId) => {
     setSelectedLayerId(layerId);
   };
@@ -158,9 +143,9 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
                           onRemoveLayer(layer.id);
                         }}
                         className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
-                        style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px', padding: 0 }}
+                        style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
                       >
-                        <span style={{ fontSize: '16px', lineHeight: '16px' }}>×</span>
+                        <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
                       </button>
                     </li>
                   )}
@@ -197,7 +182,7 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
       {colorPickerVisible &&
         ReactDOM.createPortal(
           <div
-            className="color-picker-popup grid grid-cols-6 gap-1 p-2 rounded shadow-md"
+            className="color-picker-popup p-2 rounded shadow-md"
             style={{
               position: 'absolute',
               top: colorPickerPosition.y,
@@ -205,16 +190,24 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
               backgroundColor: darkMode ? '#1f2937' : '#ffffff',
               border: '1px solid #ccc',
               zIndex: 10000,
+              width: '200px',
             }}
             ref={colorPickerRef}
           >
-            {basicColorPalette.map((colorOption) => (
-              <div
-                key={colorOption}
-                className="w-5 h-5 rounded cursor-pointer"
-                style={{ backgroundColor: colorOption }}
-                onClick={() => handleColorSelect(colorOption)}
-              ></div>
+            {Object.entries(colorGroups).map(([groupName, colors]) => (
+              <div key={groupName} className="mb-2">
+                <h4 className="text-xs font-semibold mb-1" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>{groupName}</h4>
+                <div className="grid grid-cols-6 gap-1">
+                  {colors.map((colorOption) => (
+                    <div
+                      key={colorOption}
+                      className="w-5 h-5 rounded cursor-pointer"
+                      style={{ backgroundColor: colorOption }}
+                      onClick={() => handleColorSelect(colorOption)}
+                    ></div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>,
           document.body

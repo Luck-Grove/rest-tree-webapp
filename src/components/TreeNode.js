@@ -4,7 +4,7 @@ const TreeNode = ({
   nodeId, treeData, expandedNodes, toggleNode, selectedLayers = [], setSelectedLayers,
   handleContextMenu, zoomToLayerExtent, darkMode, showOnlyActiveLayers,
   handleDownloadShapefile, handleDownloadGeoJSON, setContextMenu, level = 0,
-  setIsDownloading, setStatusMessage
+  setIsDownloading, setStatusMessage, assignColorToLayer
 }) => {
   const node = treeData[nodeId];
   if (!node) return null;
@@ -24,7 +24,7 @@ const TreeNode = ({
         handleContextMenu={handleContextMenu} zoomToLayerExtent={zoomToLayerExtent}
         darkMode={darkMode} showOnlyActiveLayers={showOnlyActiveLayers}
         handleDownloadShapefile={handleDownloadShapefile} handleDownloadGeoJSON={handleDownloadGeoJSON}
-        setContextMenu={setContextMenu} level={level + 1}
+        setContextMenu={setContextMenu} level={level + 1} assignColorToLayer={assignColorToLayer}
       />
     ))
     .filter(Boolean);
@@ -69,13 +69,15 @@ const TreeNode = ({
             layer.id === nodeId ? { ...layer, visible: !layer.visible } : layer
           );
         } else {
-          return [...prevArray, {
+          const newLayer = {
             id: nodeId,
             name: node.text,
             visible: true,
             type: 'arcgis',
-            datasource: node.url || ''
-          }];
+            datasource: node.url || '',
+            color: assignColorToLayer(nodeId, prevArray)
+          };
+          return [newLayer, ...prevArray];
         }
       });
     }

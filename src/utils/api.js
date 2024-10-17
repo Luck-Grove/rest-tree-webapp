@@ -57,7 +57,7 @@ export const fetchWithCache = async (url, params = {}, useCache = true) => {
     return rateLimiter.enqueue(fetchData);
 };
 
-export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, addConsoleMessage, skipProperties) => {
+export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers) => {
     if (signal.aborted) {
         throw new Error('Operation was cancelled');
     }
@@ -69,7 +69,7 @@ export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, 
         if (data.services) {
             for (const service of data.services) {
                 if (signal.aborted) throw new Error('Operation was cancelled');
-                await processService(parent, service, url, signal, setTreeData, addConsoleMessage, skipProperties);
+                await processService(parent, service, url, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers);
             }
         }
 
@@ -80,7 +80,12 @@ export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, 
                 const layerId = getNextId();
                 const layerText = `${layer.name} (ID: ${layer.id})`;
                 const layerUrl = `${url}/${layer.id}`;
-                setTreeData(prevData => addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId, prevData));
+                const layerColor = assignColorToLayer(layerId, selectedLayers);
+                setTreeData(prevData => {
+                    const newData = addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId, prevData);
+                    newData[layerId].color = layerColor;
+                    return newData;
+                });
             }
             setTreeData(prevData => ({
                 ...prevData,
@@ -94,7 +99,7 @@ export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, 
                 const folderId = getNextId();
                 const folderUrl = new URL(folder, url).href;
                 setTreeData(prevData => addTreeNode(parent, folder, 'folder', folderUrl, folderId, prevData));
-                await fetchAndDisplayServices(folderUrl, folderId, signal, setTreeData, addConsoleMessage, skipProperties);
+                await fetchAndDisplayServices(folderUrl, folderId, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers);
             }
         }
 
@@ -116,7 +121,7 @@ export const fetchAndDisplayServices = async (url, parent, signal, setTreeData, 
     }
 };
 
-export const processService = async (parent, service, baseUrl, signal, setTreeData, addConsoleMessage, skipProperties) => {
+export const processService = async (parent, service, baseUrl, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers) => {
     if (signal.aborted) {
         throw new Error('Operation was cancelled');
     }
@@ -127,7 +132,7 @@ export const processService = async (parent, service, baseUrl, signal, setTreeDa
     setTreeData(prevData => addTreeNode(parent, serviceText, service.type, serviceUrl, serviceId, prevData));
     
     if (service.type === 'MapServer' || service.type === 'FeatureServer') {
-        await fetchAndDisplayServices(serviceUrl, serviceId, signal, setTreeData, addConsoleMessage, skipProperties);
+        await fetchAndDisplayServices(serviceUrl, serviceId, signal, setTreeData, addConsoleMessage, skipProperties, assignColorToLayer, selectedLayers);
     }
 };
 
