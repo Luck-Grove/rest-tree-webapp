@@ -4,6 +4,7 @@ const TreeNode = ({
   nodeId, treeData, expandedNodes, toggleNode, selectedLayers = [], setSelectedLayers,
   handleContextMenu, zoomToLayerExtent, darkMode, showOnlyActiveLayers,
   handleDownloadShapefile, handleDownloadGeoJSON, setContextMenu, level = 0,
+  setIsDownloading, setStatusMessage
 }) => {
   const node = treeData[nodeId];
   if (!node) return null;
@@ -94,7 +95,7 @@ const TreeNode = ({
 
   return (
     <div className="flex flex-col" style={{ marginLeft: `${level * 20}px` }}
-      onContextMenu={(e) => !e.target.closest('.download-button') && handleContextMenu(e, nodeId, setContextMenu)}>
+      onContextMenu={(e) => !e.target.closest('.download-button') && handleContextMenu(e, node, setContextMenu)}>
       <div className={`flex items-start justify-between p-1 rounded-md tree-node fade-in ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>
         <div className="flex items-start flex-grow min-w-0">
           <div className="flex items-center flex-shrink-0 mr-2">
@@ -117,7 +118,10 @@ const TreeNode = ({
           </div>
         </div>
         {isLayer && (
-          <button onClick={(e) => { e.stopPropagation(); handleDownloadShapefile(nodeId); }}
+          <button onClick={(e) => { 
+            e.stopPropagation(); 
+            handleDownloadShapefile(node);
+          }}
             className={`download-button flex flex-col items-center p-1 ml-2 flex-shrink-0 rounded-md ${
               darkMode 
                 ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white' 

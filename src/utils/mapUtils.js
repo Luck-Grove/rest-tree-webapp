@@ -76,7 +76,9 @@ export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
       // Add selected layers in reverse order
       selectedLayers.slice().reverse().forEach((layer) => {
         if (layer && layer.visible && layer.datasource) {
-          const color = layer.color || '#3388ff'; // Default Leaflet blue if color is undefined
+          // Ensure layer.color is assigned
+          const color = layer.color || '#3388ff';
+  
           const featureLayer = EsriLeaflet.featureLayer({
             url: layer.datasource,
             cacheLayers: false,
@@ -85,6 +87,7 @@ export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
               return { color: color };
             }
           }).addTo(map);
+  
           addClickEventToLayer(featureLayer, map, darkMode);
           managedLayers.set(layer.id, featureLayer);
         }
@@ -92,8 +95,7 @@ export const updateMapLayers = (map, selectedLayers, treeData, darkMode) => {
     } catch (error) {
       console.error('Error updating map layers:', error);
     }
-  };  
-  
+  };
 
 const addClickEventToLayer = (layer, map, darkMode) => {
     layer.on('click', function(e) {

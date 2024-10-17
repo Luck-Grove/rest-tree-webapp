@@ -3,14 +3,14 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { lastBoundingBoxCoordinates } from '../commands/bbox';
 
-const fetchFeatures = async (node, setStatusMessage) => {
+const fetchFeatures = async (layerUrl, setStatusMessage) => {
     let allFeatures = [];
     let offset = 0;
     const limit = 1000;
     let hasMore = true;
 
     while (hasMore) {
-        let downloadUrl = `${node.url}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
+        let downloadUrl = `${layerUrl}/query?where=1%3D1&outFields=*&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
         
         console.log('lastBoundingBoxCoordinates:', lastBoundingBoxCoordinates);
 
@@ -42,9 +42,11 @@ const fetchFeatures = async (node, setStatusMessage) => {
     return allFeatures;
 };
 
-export const handleDownloadLayer = async (nodeId, data, setIsDownloading, setStatusMessage) => {
-    const node = data.find(layer => layer.id === nodeId) || data[nodeId];
-    if (!node) return;
+export const handleDownloadLayer = async (node, setIsDownloading, setStatusMessage) => {
+    if (!node || !node.url) {
+        setStatusMessage('Layer URL is missing.');
+        return;
+    }
 
     setIsDownloading(true);
     setStatusMessage('Initializing download...');
@@ -54,7 +56,7 @@ export const handleDownloadLayer = async (nodeId, data, setIsDownloading, setSta
         const layerInfo = response.data;
 
         if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
-            const allFeatures = await fetchFeatures(node, setStatusMessage);
+            const allFeatures = await fetchFeatures(node.url, setStatusMessage);
 
             if (allFeatures.length === 0) {
                 setStatusMessage('No features found within the specified area.');
@@ -81,9 +83,11 @@ export const handleDownloadLayer = async (nodeId, data, setIsDownloading, setSta
     }
 };
 
-export const handleDownloadShapefile = async (nodeId, data, setIsDownloading, setStatusMessage) => {
-    const node = data.find(layer => layer.id === nodeId) || data[nodeId];
-    if (!node) return;
+export const handleDownloadShapefile = async (node, setIsDownloading, setStatusMessage) => {
+    if (!node || !node.url) {
+        setStatusMessage('Layer URL is missing.');
+        return;
+    }
 
     setIsDownloading(true);
     setStatusMessage('Initializing Shapefile download...');
@@ -93,7 +97,7 @@ export const handleDownloadShapefile = async (nodeId, data, setIsDownloading, se
         const layerInfo = response.data;
 
         if (layerInfo.capabilities && layerInfo.capabilities.includes('Query')) {
-            const allFeatures = await fetchFeatures(node, setStatusMessage);
+            const allFeatures = await fetchFeatures(node.url, setStatusMessage);
 
             if (allFeatures.length === 0) {
                 setStatusMessage('No features found within the specified area.');
@@ -256,23 +260,13 @@ const fixFieldNames = (features) => {
 
 // Compression level function
 const getCompressionLevel = (featureCount) => {
-    if (featureCount > 50000) {
-        return 1;
-    } else if (featureCount > 20000) {
-        return 1;
-    } else if (featureCount > 10000) {
-        return 2;
-    } else if (featureCount > 5000) {
-        return 3;
-    } else if (featureCount > 2500) {
-        return 4;
-    } else if (featureCount > 1000) {
-        return 4;
-    } else if (featureCount > 500) {
-        return 5;
-    } else if (featureCount > 100) {
-        return 5;
-    } else {
-        return 6;
-    }
+    if (featureCount > 50000) return 1;
+    if (featureCount > 20000) return 1;
+    if (featureCount > 10000) return 2;
+    if (featureCount > 5000) return 3;
+    if (featureCount > 2500) return 4;
+    if (featureCount > 1000) return 4;
+    if (featureCount > 500) return 5;
+    if (featureCount > 100) return 5;
+    return 6;
 };

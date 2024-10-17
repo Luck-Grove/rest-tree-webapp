@@ -15,7 +15,7 @@ const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile
   }`;
 
   const handleMenuItemClick = (action) => {
-    action();
+    action(contextMenu.node);
     onClose();
   };
 
@@ -41,7 +41,7 @@ const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile
       {isLayer && (
         <div 
           className={menuItemClass} 
-          onClick={() => handleMenuItemClick(() => zoomToLayerExtent(contextMenu.nodeId))}
+          onClick={() => handleMenuItemClick(() => zoomToLayerExtent(contextMenu.node.id))}
         >
           Zoom to Layer Extent
         </div>

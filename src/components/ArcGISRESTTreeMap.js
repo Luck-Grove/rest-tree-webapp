@@ -269,54 +269,70 @@ const ArcGISRESTTreeMap = () => {
         }
     };
 
-    // Define a color palette
-    const colorPalette = [
-        '#FFB3BA', // Pastel Red
-        '#FFDFBA', // Pastel Orange
-        '#FFFFBA', // Pastel Yellow
-        '#BAFFC9', // Pastel Green
-        '#BAE1FF', // Pastel Blue
-        '#C9C9FF', // Pastel Purple
-        '#FFB3FF', // Pastel Pink
-        '#BFFFFF', // Pastel Cyan
-        '#FFFFB3', // Pastel Light Yellow
-        '#B3FFB3', // Pastel Light Green
+    const pastelColors = [
+        '#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF',
+        '#C9C9FF', '#FFB3FF', '#BFFFFF', '#FFFFB3', '#B3FFB3',
       ];
       
-    
-      const assignColorToLayer = (layerId, prevLayers) => {
-        const existingLayer = prevLayers.find(layer => layer.id === layerId);
-        if (existingLayer && existingLayer.color) {
-          return existingLayer.color; // Use existing color if already assigned
-        }
-        // Assign a new color based on the number of layers
-        const color = colorPalette[prevLayers.length % colorPalette.length];
-        return color;
-      };      
+      const allColors = [
+        ...pastelColors,
+        '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF',
+        '#C0C0C0', '#808080', '#800000', '#808000', '#008000', '#800080',
+      ];
       
+      const assignColorToLayer = (layerId, prevLayers) => {
+        const assignedColors = prevLayers.map(layer => layer.color).filter(Boolean);
+      
+        // Try to assign an unused pastel color
+        for (let color of pastelColors) {
+          if (!assignedColors.includes(color)) {
+            return color;
+          }
+        }
+      
+        // If all pastel colors are used, assign an unused color from allColors
+        for (let color of allColors) {
+          if (!assignedColors.includes(color)) {
+            return color;
+          }
+        }
+      
+        // If all colors are used, generate a random color
+        const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+        return randomColor;
+      };      
+
+      const handleLayerColorChange = (layerId, newColor) => {
+        setSelectedLayers(prevLayers =>
+          prevLayers.map(layer =>
+            layer.id === layerId ? { ...layer, color: newColor } : layer
+          )
+        );
+      };
     
       const handleToggleLayer = (layerId) => {
         setSelectedLayers(prevLayers => {
-          const layerIndex = prevLayers.findIndex(layer => layer.id === layerId);
-          if (layerIndex !== -1) {
-            // Layer exists, toggle its visibility
-            return prevLayers.map(layer =>
-              layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
-            );
-          } else {
-            // Layer doesn't exist, add it to the top
-            const newLayer = {
-              id: layerId,
-              name: treeData[layerId]?.text || 'Unknown Layer',
-              visible: true,
-              type: 'arcgis',
-              datasource: treeData[layerId]?.url || '',
-              color: assignColorToLayer(layerId, prevLayers)
-            };
-            return [newLayer, ...prevLayers];
-          }
+            const layerIndex = prevLayers.findIndex(layer => layer.id === layerId);
+            if (layerIndex !== -1) {
+                // Layer exists, toggle its visibility
+                return prevLayers.map(layer =>
+                    layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
+                );
+            } else {
+                // Layer doesn't exist, add it to the top
+                const newLayer = {
+                    id: layerId,
+                    name: treeData[layerId]?.text || 'Unknown Layer',
+                    visible: true,
+                    type: 'arcgis',
+                    datasource: treeData[layerId]?.url || '',
+                    color: assignColorToLayer(layerId, prevLayers)
+                };
+                return [newLayer, ...prevLayers];
+            }
         });
-      };         
+    };
+         
 
     const handleRemoveLayer = (layerId) => {
         setSelectedLayers(prevLayers => prevLayers.filter(layer => layer.id !== layerId));
@@ -475,43 +491,61 @@ const ArcGISRESTTreeMap = () => {
     };
 
     // Render functions
-    const renderContextMenu = () => {
-        return (
-            <ContextMenu 
-                contextMenu={contextMenu}
-                handleDownloadLayer={() => handleDownloadLayer(contextMenu.nodeId, contextMenu.isLayer ? layers : treeData, setIsDownloading, setStatusMessage)}
-                handleDownloadShapefile={() => handleDownloadShapefile(contextMenu.nodeId, contextMenu.isLayer ? layers : treeData, setIsDownloading, setStatusMessage)}
-                darkMode={darkMode}
-                onClose={closeContextMenu}
-                isLayer={contextMenu.isLayer}
-            />
-        );
-    };
+	const renderContextMenu = () => {
+		return (
+			<ContextMenu 
+				contextMenu={contextMenu}
+				handleDownloadLayer={() => handleDownloadLayer(
+					treeData[contextMenu.nodeId],
+					setIsDownloading,
+					setStatusMessage
+				)}
+				handleDownloadShapefile={() => handleDownloadShapefile(
+					treeData[contextMenu.nodeId],
+					setIsDownloading,
+					setStatusMessage
+				)}
+				darkMode={darkMode}
+				onClose={closeContextMenu}
+				isLayer={contextMenu.isLayer}
+				zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
+			/>
+		);
+	};
+      
     
-    const renderTreeMap = () => {
-        const rootNodes = Object.keys(filteredTreeData).filter(id => !filteredTreeData[id].parent);
-        return rootNodes.map(nodeId => 
-            <TreeNode
-                key={nodeId}
-                nodeId={nodeId}
-                treeData={filteredTreeData}
-                expandedNodes={expandedNodes}
-                toggleNode={(id) => toggleNode(setExpandedNodes, id)}
-                selectedLayers={selectedLayers}
-                setSelectedLayers={setSelectedLayers}
-                handleContextMenu={handleContextMenuClick}
-                darkMode={darkMode}
-                showOnlyActiveLayers={showOnlyActiveLayers}
-                handleDownloadShapefile={(id) => handleDownloadShapefile(id, treeData, setIsDownloading, setStatusMessage)}
-                handleDownloadGeoJSON={(id) => handleDownloadLayer(id, treeData, setIsDownloading, setStatusMessage)}
-                map={map}
-                zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
-                level={0}
-                setIsDownloading={setIsDownloading}
-                setStatusMessage={setStatusMessage}
-            />
-        );
-    };
+	const renderTreeMap = () => {
+		const rootNodes = Object.keys(filteredTreeData).filter(id => !filteredTreeData[id].parent);
+		return rootNodes.map(nodeId => 
+			<TreeNode
+				key={nodeId}
+				nodeId={nodeId}
+				treeData={filteredTreeData}
+				expandedNodes={expandedNodes}
+				toggleNode={(id) => toggleNode(setExpandedNodes, id)}
+				selectedLayers={selectedLayers}
+				setSelectedLayers={setSelectedLayers}
+				handleContextMenu={handleContextMenuClick}
+				darkMode={darkMode}
+				showOnlyActiveLayers={showOnlyActiveLayers}
+				handleDownloadShapefile={(node) => handleDownloadShapefile(
+					node,
+					setIsDownloading,
+					setStatusMessage
+				)}
+				handleDownloadGeoJSON={(node) => handleDownloadLayer(
+					node,
+					setIsDownloading,
+					setStatusMessage
+				)}
+				map={map}
+				zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
+				level={0}
+				setIsDownloading={setIsDownloading}
+				setStatusMessage={setStatusMessage}
+			/>
+		);
+	};
 
     const renderSidePanel = () => {
         return (
@@ -813,6 +847,7 @@ const ArcGISRESTTreeMap = () => {
                 darkMode={darkMode}
                 selectedLayerId={selectedLayerId}
                 setSelectedLayerId={setSelectedLayerId}
+                onLayerColorChange={handleLayerColorChange}
             />
 
             <style jsx global>{`
