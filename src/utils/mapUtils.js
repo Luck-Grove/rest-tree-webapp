@@ -216,6 +216,15 @@ export const zoomToLayerExtent = async (layerId, treeData, map) => {
     }
 };
 
+export const getLink = (layerId, treeData) => {
+    const layer = treeData[layerId];
+    if (layer && layer.url) {
+        window.open(layer.url, '_blank');
+    } else {
+        console.warn('Invalid layer or no URL found for layer:', layerId);
+    }
+};
+
 const setCookie = (name, value, days) => {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
     document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/';

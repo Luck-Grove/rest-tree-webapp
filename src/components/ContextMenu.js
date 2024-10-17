@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile, darkMode, onClose, isLayer, zoomToLayerExtent }) => {
+const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile, darkMode, onClose, isLayer, zoomToLayerExtent, getLink }) => {
   if (!contextMenu.visible) return null;
 
   const menuStyle = {
@@ -13,7 +13,6 @@ const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile
   const menuItemClass = `px-4 py-2 hover:bg-opacity-80 cursor-pointer ${
       darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
   }`;
-
 
   const handleMenuItemClick = (action) => {
     try {
@@ -41,6 +40,14 @@ return (
           >
               Zoom to Layer Extent
           </div>
+      )}
+      {isLayer && (
+        <div 
+            className={menuItemClass} 
+            onClick={() => handleMenuItemClick(() => getLink(contextMenu.nodeId, contextMenu.treeData))}
+        >
+            View Layer Details
+        </div>
       )}
       <div 
           className={menuItemClass} 

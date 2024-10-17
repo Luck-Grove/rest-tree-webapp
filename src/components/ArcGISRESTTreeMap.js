@@ -12,7 +12,7 @@ import TreeNode from './TreeNode';
 import CommandBar from './CommandBar';
 import LayerManager from './LayerManager';
 
-import { initializeMap, updateMapLayers, updateBasemap, zoomToLayerExtent } from '../utils/mapUtils';
+import { initializeMap, updateMapLayers, updateBasemap, zoomToLayerExtent, getLink } from '../utils/mapUtils';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetSelect, handlePresetInputFocus } from '../utils/presetUtils';
 import { toggleNode, filterTreeData, exportToCSV } from '../utils/treeUtils';
 import { expandAll, collapseAll } from '../utils/uiHelpers';
@@ -513,28 +513,28 @@ const ArcGISRESTTreeMap = () => {
     };
 
     // Render functions
-	const renderContextMenu = () => {
-		return (
-			<ContextMenu 
-				contextMenu={contextMenu}
-				handleDownloadLayer={() => handleDownloadLayer(
-					treeData[contextMenu.nodeId],
-					setIsDownloading,
-					setStatusMessage
-				)}
-				handleDownloadShapefile={() => handleDownloadShapefile(
-					treeData[contextMenu.nodeId],
-					setIsDownloading,
-					setStatusMessage
-				)}
-				darkMode={darkMode}
-				onClose={closeContextMenu}
-				isLayer={contextMenu.isLayer}
-				zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
-			/>
-		);
-	};
-      
+    const renderContextMenu = () => {
+        return (
+            <ContextMenu 
+                contextMenu={contextMenu}
+                handleDownloadLayer={() => handleDownloadLayer(
+                    treeData[contextMenu.nodeId],
+                    setIsDownloading,
+                    setStatusMessage
+                )}
+                handleDownloadShapefile={() => handleDownloadShapefile(
+                    treeData[contextMenu.nodeId],
+                    setIsDownloading,
+                    setStatusMessage
+                )}
+                darkMode={darkMode}
+                onClose={closeContextMenu}
+                isLayer={contextMenu.isLayer}
+                zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, map)}
+                getLink={(id) => getLink(id, treeData)}
+            />
+        );
+    };
     
     const renderTreeMap = () => {
         const rootNodes = Object.keys(filteredTreeData).filter(id => !filteredTreeData[id].parent);
@@ -736,7 +736,7 @@ const ArcGISRESTTreeMap = () => {
                         </div>
                     )}
     
-                    <div className={`tree-container mt-3 border p-3 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} overflow-auto`} style={{maxHeight: 'calc(100vh - 24rem)'}}>
+                    <div className={`tree-container mt-3 border p-3 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} overflow-auto`} style={{maxHeight: 'calc(100vh - 25rem)'}}>
                         {renderTreeMap()}
                     </div>
                 </div>
@@ -880,7 +880,7 @@ const ArcGISRESTTreeMap = () => {
                         left: 12px;
                         width: 360px;
                         z-index: 1000;
-                        background-color: ${darkMode ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)'};
+                        background-color: ${darkMode ? 'rgba(31, 41, 55, 0.8)' : 'rgba(255, 255, 255, 0.8)'};
                         border-radius: 4px;
                         box-shadow: 0 1px 5px rgba(0,0,0,0.65);
                         max-height: calc(100vh - 24px);
