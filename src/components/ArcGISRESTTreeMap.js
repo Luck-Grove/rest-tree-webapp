@@ -198,7 +198,7 @@ const ArcGISRESTTreeMap = () => {
             value={basemap}
             onChange={(e) => handleBasemapChange(e.target.value)}
             className={`px-2 py-1 rounded ${
-              darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'
+              darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
             }`}
           >
             <option value="default">Default OSM</option>
