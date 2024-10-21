@@ -84,7 +84,7 @@ const bboxCommand = {
         }
       }
 
-      writeToConsole("Bounding box tool activated. Click and drag on the map to draw a rectangle. Press Escape to cancel.", addConsoleMessage);
+      writeToConsole("Click and drag on the map to draw a rectangle. Press Escape to cancel.", addConsoleMessage);
     } catch (error) {
       writeToConsole(`Error activating bounding box tool: ${error.message}`, addConsoleMessage);
     }
