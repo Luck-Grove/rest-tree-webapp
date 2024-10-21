@@ -41,26 +41,28 @@ return (
               Zoom to Layer Extent
           </div>
       )}
-      {isLayer && (
         <div 
             className={menuItemClass} 
             onClick={() => handleMenuItemClick(() => getLink(contextMenu.nodeId, contextMenu.treeData))}
         >
-            View Layer Details
+            View Details
         </div>
-      )}
+      {isLayer && (
       <div 
           className={menuItemClass} 
           onClick={() => handleMenuItemClick(handleDownloadLayer)}
       >
           Download as GeoJSON
       </div>
+      )}
+      {isLayer && (
       <div 
           className={menuItemClass} 
           onClick={() => handleMenuItemClick(handleDownloadShapefile)}
       >
           Download as Shapefile
       </div>
+      )}
   </div>
 );
 };
