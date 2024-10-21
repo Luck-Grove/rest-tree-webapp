@@ -33,88 +33,6 @@ body {
 
 .floating-panel {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 1000;
-    background-color: rgba(255, 255, 255, 0.9);
-    border-radius: 4px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.65);
-    max-height: calc(100vh - 20px);
-    overflow-y: auto;
-    max-width: 400px;
-}
-
-.leaflet-popup-content {
-    margin: 5px 5px;
-    line-height: 1.4;
-}
-
-.leaflet-popup-content-wrapper {
-    padding: 1px;
-    text-align: left;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Firefox */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: #888 transparent;
-}
-
-/* Dark mode scrollbar */
-.dark ::-webkit-scrollbar-thumb {
-    background: #555;
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-    background: #777;
-}
-
-.dark * {
-    scrollbar-color: #555 transparent;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading-swirl {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 50%;
-    border-top-color: #fff;
-    animation: spin 1s ease-in-out infinite;
-    margin-left: 8px;
-}
-
-.leaflet-container {
-    background: none !important;
-}
-
-/* Styles from ArcGISRESTTreeMap.js */
-.floating-panel {
-    position: absolute;
     top: 12px;
     left: 12px;
     width: 360px;
@@ -175,4 +93,136 @@ body {
     z-index: 1000;
     max-height: calc(100vh - 24px);
     overflow-y: auto;
+}
+
+.leaflet-control-zoom a {
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.dark .leaflet-control-zoom a,
+.dark .leaflet-control-attribution {
+    background-color: #1f2937 !important;
+    color: #e5e7eb !important;
+}
+
+.dark .leaflet-control-zoom-in,
+.dark .leaflet-control-zoom-out {
+    border-bottom: 1px solid #4b5563 !important;
+}
+
+.dark .leaflet-control-attribution a {
+    color: #60a5fa !important;
+}
+
+.leaflet-control-attribution {
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.leaflet-control-attribution a {
+    transition: color 0.3s;
+}
+
+.leaflet-draw-draw-rectangle {
+    background-image: none !important;
+    text-indent: 0 !important;
+    color: transparent;
+    background-color: #f3f4f6;
+    border: 1px solid #d1d5db;
+    transition: background-color 0.3s, color 0.3s;
+    position: relative;
+    overflow: hidden;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+}
+
+.leaflet-draw-draw-rectangle::after {
+    content: 'BB';
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: #374151;
+}
+
+.leaflet-draw-draw-rectangle:hover {
+    background-color: #e5e7eb;
+}
+
+.dark .leaflet-draw-draw-rectangle {
+    background-color: #374151;
+    border: 1px solid #4b5563;
+}
+
+.dark .leaflet-draw-draw-rectangle:hover {
+    background-color: #4b5563;
+}
+
+.dark .leaflet-draw-draw-rectangle::after {
+    color: #f3f4f6;
+}
+
+.leaflet-draw-toolbar a {
+    background-image: none;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #888 transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+.dark * {
+    scrollbar-color: #555 transparent;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-swirl {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-left: 8px;
+}
+
+.leaflet-container {
+    background: none !important;
 }
