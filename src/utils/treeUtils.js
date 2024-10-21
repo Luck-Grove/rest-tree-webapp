@@ -28,7 +28,7 @@ export const toggleNode = (setExpandedNodes, nodeId) => {
 export const isNodeVisible = (nodeId, treeData, searchTerm) => {
     const node = treeData[nodeId];
     if (!node) return false;
-    if (node.text.toLowerCase().includes(searchTerm.toLowerCase())) return true;
+    if (node.text && node.text.toLowerCase().includes(searchTerm.toLowerCase())) return true;
     if (node.type === 'layer') return true;
     return Object.keys(treeData).some(childId => 
         treeData[childId].parent === nodeId && isNodeVisible(childId, treeData, searchTerm)
@@ -50,7 +50,7 @@ export const filterTreeData = (treeData, searchTerm) => {
     const normalizedSearchTerm = searchTerm.toLowerCase();
     const newFilteredData = {};
     Object.entries(treeData).forEach(([id, node]) => {
-        if (node.text.toLowerCase().includes(normalizedSearchTerm)) {
+        if (node.text && node.text.toLowerCase().includes(normalizedSearchTerm)) {
             insertParentChain(id, newFilteredData, treeData);
         }
     });
@@ -64,7 +64,7 @@ export const getVisibleNodes = (treeData, searchTerm, showOnlyActiveLayers, sele
         const node = treeData[nodeId];
         if (!node) return false;
         
-        if (node.text.toLowerCase().includes(searchTerm.toLowerCase())) {
+        if (node.text && node.text.toLowerCase().includes(searchTerm.toLowerCase())) {
             return true;
         }
         
@@ -99,13 +99,13 @@ export const exportToCSV = (filteredTreeData) => {
         if (!node) return;
 
         if (node.type === 'layer') {
-            csvRows.push([node.text, path]);
+            csvRows.push([node.text || '', path]);
         }
 
         Object.entries(filteredTreeData)
             .filter(([_, data]) => data.parent === nodeId)
             .forEach(([childId, _]) => {
-                const newPath = path ? `${path}/${node.text}` : node.text;
+                const newPath = path ? `${path}/${node.text || ''}` : (node.text || '');
                 traverseTree(childId, newPath);
             });
     };

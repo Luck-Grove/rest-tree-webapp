@@ -99,7 +99,7 @@ export const fetchAndDisplayServices = async (
     const truncatedUrl = truncateUrl(url);
     writeToConsole(
       <React.Fragment>
-        Processing content for{' '}
+        Processing:{' '}
         <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
           {truncatedUrl}
         </a>
