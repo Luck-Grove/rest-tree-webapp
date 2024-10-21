@@ -5,16 +5,19 @@ import SearchBar from './SearchBar';
 import LayerManager from './LayerManager';
 import SidePanel from './SidePanel';
 import LeafletMap from './LeafletMap';
+import Button from './Button';
+import ErrorBoundary from './ErrorBoundary';
 
-import { updateBasemap, zoomToLayerExtent, getLink } from '../utils/mapUtils';
+import { zoomToLayerExtent, getLink } from '../utils/mapUtils';
 import { fetchAndDisplayServices } from '../utils/api';
 import { executeCommand } from '../utils/commandUtils';
 import { filterTreeData, toggleNode } from '../utils/treeUtils';
 import { handleDownloadLayer, handleDownloadShapefile } from '../utils/dlHelpers';
-import { getOrSetCookie } from '../utils/cookieUtils';
 import useAddressSuggestions from '../hooks/useAddressSuggestions';
 import useLayerManager from '../hooks/useLayerManager';
 import useContextMenu from '../hooks/useContextMenu';
+import { useDarkMode } from '../contexts/DarkModeContext';
+import { useMap } from '../contexts/MapContext';
 
 const ArcGISRESTTreeMap = () => {
   const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
@@ -30,12 +33,12 @@ const ArcGISRESTTreeMap = () => {
   const [filteredTreeData, setFilteredTreeData] = useState({});
   const [abortController, setAbortController] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => getOrSetCookie('darkMode', 'true', 365) === 'true');
   const [showOnlyActiveLayers, setShowOnlyActiveLayers] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
-  const [basemap, setBasemap] = useState(() => getOrSetCookie('basemap', 'default', 365));
   const [currentCommand, setCurrentCommand] = useState('');
-  const mapRef = useRef(null);
+
+  const { darkMode, toggleDarkMode } = useDarkMode();
+  const { basemap, handleBasemapChange, mapRef } = useMap();
 
   const {
     address,
@@ -72,23 +75,6 @@ const ArcGISRESTTreeMap = () => {
   useEffect(() => {
     setFilteredTreeData(filterTreeData(treeData, searchTerm));
   }, [treeData, searchTerm]);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark', 'bg-gray-900', 'text-gray-100');
-    } else {
-      document.body.classList.remove('dark', 'bg-gray-900', 'text-gray-100');
-    }
-  }, [darkMode]);
-
-  const handleBasemapChange = (e) => {
-    const selectedBasemap = e.target.value;
-    setBasemap(selectedBasemap);
-    if (mapRef.current) {
-      updateBasemap(mapRef.current, selectedBasemap, darkMode);
-    }
-    document.cookie = `basemap=${encodeURIComponent(selectedBasemap)}; path=/; max-age=31536000`;
-  };
 
   const addConsoleMessage = useCallback((message) => {
     setConsoleMessages((prev) => [...prev, message]);
@@ -139,168 +125,159 @@ const ArcGISRESTTreeMap = () => {
     }
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode((prevDarkMode) => {
-      const newDarkMode = !prevDarkMode;
-      document.cookie = `darkMode=${newDarkMode}; path=/; max-age=31536000`;
-      if (mapRef.current) {
-        updateBasemap(mapRef.current, basemap, newDarkMode);
-      }
-      return newDarkMode;
-    });
-  };
-
   const handleCommand = useCallback(
     (command) => {
       executeCommand(command, mapRef.current, [], addConsoleMessage);
       setCurrentCommand('');
     },
-    [addConsoleMessage]
+    [addConsoleMessage, mapRef]
   );
 
   return (
-    <div
-      className={`h-screen ${
-        darkMode ? 'bg-transparent text-gray-100' : 'bg-transparent text-gray-800'
-      }`}
-      onClick={closeContextMenu}
-    >
-      <LeafletMap
-        darkMode={darkMode}
-        basemap={basemap}
-        selectedLayers={selectedLayers}
-        addConsoleMessage={addConsoleMessage}
-        currentCommand={currentCommand}
-        handleCommand={handleCommand}
-        mapRef={mapRef}
-      />
+    <ErrorBoundary>
+      <div
+        className={`h-screen ${
+          darkMode ? 'bg-transparent text-gray-100' : 'bg-transparent text-gray-800'
+        }`}
+        onClick={closeContextMenu}
+      >
+        <LeafletMap
+          darkMode={darkMode}
+          basemap={basemap}
+          selectedLayers={selectedLayers}
+          addConsoleMessage={addConsoleMessage}
+          currentCommand={currentCommand}
+          handleCommand={handleCommand}
+          mapRef={mapRef}
+        />
 
-      <SearchBar
-        address={address}
-        setAddress={setAddress}
-        handleAddressSubmit={handleAddressSubmit}
-        handleAddressChange={handleAddressChange}
-        suggestions={suggestions}
-        showSuggestions={showSuggestions}
-        handleSuggestionClick={handleSuggestionClick}
-        darkMode={darkMode}
-        handleKeyDown={(e) => {
-          if (showSuggestions) {
-            switch (e.key) {
-              case 'ArrowDown':
-                e.preventDefault();
-                setSelectedSuggestionIndex((prevIndex) =>
-                  prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
-                );
-                break;
-              case 'ArrowUp':
-                e.preventDefault();
-                setSelectedSuggestionIndex((prevIndex) =>
-                  prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
-                );
-                break;
-              case 'Enter':
-                if (selectedSuggestionIndex !== -1) {
+        <SearchBar
+          address={address}
+          setAddress={setAddress}
+          handleAddressSubmit={handleAddressSubmit}
+          handleAddressChange={handleAddressChange}
+          suggestions={suggestions}
+          showSuggestions={showSuggestions}
+          handleSuggestionClick={handleSuggestionClick}
+          darkMode={darkMode}
+          handleKeyDown={(e) => {
+            if (showSuggestions) {
+              switch (e.key) {
+                case 'ArrowDown':
                   e.preventDefault();
-                  handleSuggestionClick(suggestions[selectedSuggestionIndex]);
-                }
-                break;
-              case 'Escape':
-                setShowSuggestions(false);
-                setSelectedSuggestionIndex(-1);
-                break;
-              default:
-                break;
+                  setSelectedSuggestionIndex((prevIndex) =>
+                    prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
+                  );
+                  break;
+                case 'ArrowUp':
+                  e.preventDefault();
+                  setSelectedSuggestionIndex((prevIndex) =>
+                    prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
+                  );
+                  break;
+                case 'Enter':
+                  if (selectedSuggestionIndex !== -1) {
+                    e.preventDefault();
+                    handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+                  }
+                  break;
+                case 'Escape':
+                  setShowSuggestions(false);
+                  setSelectedSuggestionIndex(-1);
+                  break;
+                default:
+                  break;
+              }
             }
+          }}
+          selectedSuggestionIndex={selectedSuggestionIndex}
+        />
+
+        <div className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-gray-800 p-2 rounded shadow-md">
+          <select
+            value={basemap}
+            onChange={(e) => handleBasemapChange(e.target.value)}
+            className={`px-2 py-1 rounded ${
+              darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'
+            }`}
+          >
+            <option value="default">Default OSM</option>
+            <option value="esriAerial">ESRI Aerial</option>
+            <option value="googleHybrid">Google Hybrid</option>
+          </select>
+        </div>
+
+        <SidePanel
+          darkMode={darkMode}
+          toggleDarkMode={toggleDarkMode}
+          url={url}
+          setUrl={setUrl}
+          skipProperties={skipProperties}
+          setSkipProperties={setSkipProperties}
+          loading={loading}
+          generateTreeMap={generateTreeMap}
+          handleStopProcessing={handleStopProcessing}
+          treeData={treeData}
+          filteredTreeData={filteredTreeData}
+          expandedNodes={expandedNodes}
+          setExpandedNodes={setExpandedNodes}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          showOnlyActiveLayers={showOnlyActiveLayers}
+          setShowOnlyActiveLayers={setShowOnlyActiveLayers}
+          error={error}
+          setError={setError}
+          statusMessage={statusMessage}
+          setStatusMessage={setStatusMessage}
+          isDownloading={isDownloading}
+          selectedLayers={selectedLayers}
+          setSelectedLayers={setSelectedLayers}
+          handleContextMenu={handleContextMenuClick}
+          map={mapRef.current}
+          setIsDownloading={setIsDownloading}
+          toggleNode={toggleNode}
+          handleDownloadShapefile={handleDownloadShapefile}
+          handleDownloadLayer={handleDownloadLayer}
+          zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, mapRef.current)}
+          assignColorToLayer={assignColorToLayer}
+        />
+
+        <ContextMenu
+          contextMenu={contextMenu}
+          handleDownloadLayer={() =>
+            handleDownloadLayer(treeData[contextMenu.nodeId], setIsDownloading, setStatusMessage)
           }
-        }}
-        selectedSuggestionIndex={selectedSuggestionIndex}
-      />
+          handleDownloadShapefile={() =>
+            handleDownloadShapefile(treeData[contextMenu.nodeId], setIsDownloading, setStatusMessage)
+          }
+          darkMode={darkMode}
+          onClose={closeContextMenu}
+          isLayer={contextMenu.isLayer}
+          zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, mapRef.current)}
+          getLink={(id) => getLink(id, treeData)}
+        />
 
-      <div className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-gray-800 p-2 rounded shadow-md">
-        <select
-          value={basemap}
-          onChange={handleBasemapChange}
-          className={`px-2 py-1 rounded ${
-            darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-800'
-          }`}
-        >
-          <option value="default">Default OSM</option>
-          <option value="esriAerial">ESRI Aerial</option>
-          <option value="googleHybrid">Google Hybrid</option>
-        </select>
+        <Console
+          consoleMessages={consoleMessages}
+          darkMode={darkMode}
+          onCommand={handleCommand}
+          addConsoleMessage={addConsoleMessage}
+          currentCommand={currentCommand}
+        />
+
+        <LayerManager
+          selectedLayers={selectedLayers}
+          onToggleLayer={handleToggleLayer}
+          onRemoveLayer={handleRemoveLayer}
+          onReorderLayers={handleReorderLayers}
+          onAddLayer={handleAddLayer}
+          darkMode={darkMode}
+          selectedLayerId={selectedLayerId}
+          setSelectedLayerId={setSelectedLayerId}
+          onLayerColorChange={handleLayerColorChange}
+        />
       </div>
-
-      <SidePanel
-        darkMode={darkMode}
-        toggleDarkMode={toggleDarkMode}
-        url={url}
-        setUrl={setUrl}
-        skipProperties={skipProperties}
-        setSkipProperties={setSkipProperties}
-        loading={loading}
-        generateTreeMap={generateTreeMap}
-        handleStopProcessing={handleStopProcessing}
-        treeData={treeData}
-        filteredTreeData={filteredTreeData}
-        expandedNodes={expandedNodes}
-        setExpandedNodes={setExpandedNodes}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        showOnlyActiveLayers={showOnlyActiveLayers}
-        setShowOnlyActiveLayers={setShowOnlyActiveLayers}
-        error={error}
-        setError={setError}
-        statusMessage={statusMessage}
-        setStatusMessage={setStatusMessage}
-        isDownloading={isDownloading}
-        selectedLayers={selectedLayers}
-        setSelectedLayers={setSelectedLayers}
-        handleContextMenu={handleContextMenuClick}
-        map={mapRef.current}
-        setIsDownloading={setIsDownloading}
-        toggleNode={toggleNode}
-        handleDownloadShapefile={handleDownloadShapefile}
-        handleDownloadLayer={handleDownloadLayer}
-        zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, mapRef.current)}
-        assignColorToLayer={assignColorToLayer}
-      />
-
-      <ContextMenu
-        contextMenu={contextMenu}
-        handleDownloadLayer={() =>
-          handleDownloadLayer(treeData[contextMenu.nodeId], setIsDownloading, setStatusMessage)
-        }
-        handleDownloadShapefile={() =>
-          handleDownloadShapefile(treeData[contextMenu.nodeId], setIsDownloading, setStatusMessage)
-        }
-        darkMode={darkMode}
-        onClose={closeContextMenu}
-        isLayer={contextMenu.isLayer}
-        zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, mapRef.current)}
-        getLink={(id) => getLink(id, treeData)}
-      />
-
-      <Console
-        consoleMessages={consoleMessages}
-        darkMode={darkMode}
-        onCommand={handleCommand}
-        addConsoleMessage={addConsoleMessage}
-        currentCommand={currentCommand}
-      />
-
-      <LayerManager
-        selectedLayers={selectedLayers}
-        onToggleLayer={handleToggleLayer}
-        onRemoveLayer={handleRemoveLayer}
-        onReorderLayers={handleReorderLayers}
-        onAddLayer={handleAddLayer}
-        darkMode={darkMode}
-        selectedLayerId={selectedLayerId}
-        setSelectedLayerId={setSelectedLayerId}
-        onLayerColorChange={handleLayerColorChange}
-      />
-    </div>
+    </ErrorBoundary>
   );
 };
 

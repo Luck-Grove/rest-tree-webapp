@@ -1,12 +1,15 @@
 import React from 'react';
 import ArcGISRESTTreeMap from './components/ArcGISRESTTreeMap';
-import './styles/index.css';
+import { DarkModeProvider } from './contexts/DarkModeContext';
+import { MapProvider } from './contexts/MapContext';
 
 function App() {
   return (
-    <div className="App">
-      <ArcGISRESTTreeMap />
-    </div>
+    <DarkModeProvider>
+      <MapProvider>
+        <ArcGISRESTTreeMap />
+      </MapProvider>
+    </DarkModeProvider>
   );
 }
 
