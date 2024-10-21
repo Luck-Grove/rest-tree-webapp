@@ -73,13 +73,23 @@ export const fetchAndDisplayServices = async (
       throw new Error('Operation was cancelled');
     }
   
+    // Ensure processedUrls is a Set
+    let urlSet;
+    if (processedUrls instanceof Set) {
+      urlSet = processedUrls;
+    } else if (Array.isArray(processedUrls)) {
+      urlSet = new Set(processedUrls);
+    } else {
+      urlSet = new Set();
+    }
+  
     // Check if the URL has already been processed
-    if (processedUrls.has(url)) {
+    if (urlSet.has(url)) {
       return;
     }
   
     // Add the URL to the processed set
-    processedUrls.add(url);
+    urlSet.add(url);
 
     // Truncate URL for display
     const truncateUrl = (url) => {
@@ -94,7 +104,6 @@ export const fetchAndDisplayServices = async (
         return url;
       };
       
-  
     // Output console message only for new content
     const truncatedUrl = truncateUrl(url);
     writeToConsole(
@@ -124,7 +133,7 @@ export const fetchAndDisplayServices = async (
             skipProperties,
             assignColorToLayer,
             selectedLayers,
-            processedUrls,
+            urlSet,
             treeData
           );
         }
@@ -147,11 +156,15 @@ export const fetchAndDisplayServices = async (
           const layerId = getNextId();
           const layerText = `${layer.name} (ID: ${layer.id})`;
           const layerUrl = `${url}/${layer.id}`;
-          const layerColor = assignColorToLayer(layerId, selectedLayers);
+          const layerColor = typeof assignColorToLayer === 'function' 
+            ? assignColorToLayer(layerId, selectedLayers)
+            : null;
   
           setTreeData((prevData) => {
             const newData = addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId, prevData);
-            newData[layerId].color = layerColor;
+            if (layerColor) {
+              newData[layerId].color = layerColor;
+            }
             return newData;
           });
   
@@ -216,7 +229,7 @@ export const fetchAndDisplayServices = async (
             skipProperties,
             assignColorToLayer,
             selectedLayers,
-            processedUrls,
+            urlSet,
             treeData
           );
         }
@@ -262,7 +275,7 @@ export const fetchAndDisplayServices = async (
   };
 
   
-  export const processService = async (
+export const processService = async (
     parent,
     service,
     baseUrl,
@@ -272,7 +285,7 @@ export const fetchAndDisplayServices = async (
     skipProperties,
     assignColorToLayer,
     selectedLayers,
-    processedUrls,
+    urlSet,
     treeData
   ) => {
     if (signal.aborted) {
@@ -314,7 +327,7 @@ export const fetchAndDisplayServices = async (
         skipProperties,
         assignColorToLayer,
         selectedLayers,
-        processedUrls,
+        urlSet,
         treeData
       );
     }

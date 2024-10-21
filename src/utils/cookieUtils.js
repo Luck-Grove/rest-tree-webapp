@@ -37,3 +37,19 @@ export const removeCookie = (name) => {
 export const hasCookie = (name) => {
     return getCookie(name) !== null;
 };
+
+/**
+ * Get the value of a cookie, or set it to a default value if it doesn't exist
+ * @param {string} name - The name of the cookie
+ * @param {string} defaultValue - The default value to set if the cookie doesn't exist
+ * @param {number} days - The number of days until the cookie expires
+ * @returns {string} The value of the cookie
+ */
+export const getOrSetCookie = (name, defaultValue, days) => {
+    let value = getCookie(name);
+    if (value === null) {
+        setCookie(name, defaultValue, days);
+        value = defaultValue;
+    }
+    return value;
+};
