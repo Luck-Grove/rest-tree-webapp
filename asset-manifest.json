@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/rest-tree-webapp/static/css/main.8a1ffb67.css",
-    "main.js": "/rest-tree-webapp/static/js/main.0dc0f5c7.js",
+    "main.css": "/rest-tree-webapp/static/css/main.6db6c690.css",
+    "main.js": "/rest-tree-webapp/static/js/main.c2fbcca9.js",
     "static/js/453.6e4d7dd6.chunk.js": "/rest-tree-webapp/static/js/453.6e4d7dd6.chunk.js",
     "static/media/spritesheet.svg": "/rest-tree-webapp/static/media/spritesheet.a4e0eb7ad904a4858361.svg",
     "index.html": "/rest-tree-webapp/index.html",
-    "main.8a1ffb67.css.map": "/rest-tree-webapp/static/css/main.8a1ffb67.css.map",
-    "main.0dc0f5c7.js.map": "/rest-tree-webapp/static/js/main.0dc0f5c7.js.map",
+    "main.6db6c690.css.map": "/rest-tree-webapp/static/css/main.6db6c690.css.map",
+    "main.c2fbcca9.js.map": "/rest-tree-webapp/static/js/main.c2fbcca9.js.map",
     "453.6e4d7dd6.chunk.js.map": "/rest-tree-webapp/static/js/453.6e4d7dd6.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.8a1ffb67.css",
-    "static/js/main.0dc0f5c7.js"
+    "static/css/main.6db6c690.css",
+    "static/js/main.c2fbcca9.js"
   ]
 }
