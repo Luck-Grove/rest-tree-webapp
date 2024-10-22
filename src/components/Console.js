@@ -3,7 +3,7 @@ import CommandBar from './CommandBar';
 import { setCookie, getCookie } from '../utils/cookieUtils';
 
 const Console = ({ consoleMessages, darkMode, onCommand, addConsoleMessage }) => {
-    const defaultHeight = 64; // Default height in pixels
+    const defaultHeight = 96; // Default height in pixels
     const minHeight = 50; // Minimum height in pixels
     const maxHeight = 500; // Maximum height in pixels
     const bottomOffset = 40; // Offset from the bottom of the screen (adjust as needed)
