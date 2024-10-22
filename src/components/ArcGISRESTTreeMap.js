@@ -134,14 +134,15 @@ const ArcGISRESTTreeMap = () => {
     setConsoleMessages((prev) => [...prev, message]);
   }, []);
 
-  const generateTreeMap = async () => {
+  const generateTreeMap = async (setHasStoredData) => {
+    let controller = null;
     try {
-        const controller = new AbortController();
+        controller = new AbortController();
         setAbortController(controller);
         setLoading(true);
         setError(null);
 
-        await fetchServicesWithCache({
+        const result = await fetchServicesWithCache({
             url,
             signal: controller.signal,
             setTreeData,
@@ -151,15 +152,27 @@ const ArcGISRESTTreeMap = () => {
             selectedLayers,
             expandedNodes,
             onCacheResult: (result) => {
-                if (result === 'loaded' || result === 'saved') {
-                    setHasStoredData(true);
+                if (setHasStoredData) {
+                    setHasStoredData(result === 'loaded' || result === 'saved');
                 }
             }
         });
+
+        // Add this check for successful generation
+        if (result && Object.keys(result).length > 0 && setHasStoredData) {
+            setHasStoredData(true);
+        }
+
     } catch (error) {
         if (error.message !== 'Operation was cancelled') {
             console.error('Error:', error);
             setError(error.message);
+            addConsoleMessage('Failed to generate tree map: ' + error.message);
+            if (setHasStoredData) {
+                setHasStoredData(false);
+            }
+        } else {
+            addConsoleMessage('Operation cancelled by user');
         }
     } finally {
         setLoading(false);
