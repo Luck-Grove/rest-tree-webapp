@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetInputFocus, handlePresetSelect } from '../utils/presetUtils';
 import { expandAll, collapseAll } from '../utils/uiHelpers';
 import { exportToCSV } from '../utils/treeUtils';
+import { checkTreeMapExists, loadTreeMap, saveTreeMap, clearOutdatedCache, getCacheStats, clearAllCache } from '../utils/indexedDBUtils';
 import TreeNode from './TreeNode';
 
 const SidePanel = ({ 
@@ -11,10 +12,12 @@ const SidePanel = ({
     setUrl, 
     skipProperties, 
     setSkipProperties, 
-    loading, 
+    loading,
+    setLoading, 
     generateTreeMap, 
     handleStopProcessing, 
     treeData,
+    setTreeData,
     filteredTreeData,
     expandedNodes,
     setExpandedNodes,
@@ -36,13 +39,15 @@ const SidePanel = ({
     toggleNode,
     handleDownloadShapefile,
     handleDownloadLayer,
-    zoomToLayerExtent
+    zoomToLayerExtent,
+    addConsoleMessage
 }) => {
     const [selectedPreset, setSelectedPreset] = useState('');
     const [presets, setPresets] = useState([]);
     const [filteredPresets, setFilteredPresets] = useState([]);
     const [showPresetDropdown, setShowPresetDropdown] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [hasStoredData, setHasStoredData] = useState(false);
 
     const presetInputRef = useRef(null);
     const dropdownRef = useRef(null);
@@ -52,17 +57,99 @@ const SidePanel = ({
             console.error('Error loading XML presets:', error.message);
         });
     }, []);
-	
-    useEffect(() => {
-        if (error || statusMessage) {
-            const timer = setTimeout(() => {
-                setError(null);
-                setStatusMessage('');
-            }, 5000); // 5 seconds
 
-            return () => clearTimeout(timer);
+    useEffect(() => {
+        const checkStoredData = async () => {
+            const exists = await checkTreeMapExists(url);
+            setHasStoredData(exists);
+        };
+        checkStoredData();
+    }, [url]);
+
+    useEffect(() => {
+        const initializeCache = async () => {
+            try {
+                await clearOutdatedCache();
+                const stats = await getCacheStats();
+                console.log('Cache statistics:', stats);
+                
+                // Check if current URL has cached data
+                const exists = await checkTreeMapExists(url);
+                setHasStoredData(exists);
+            } catch (error) {
+                console.error('Error initializing cache:', error);
+                // Don't show error to user, just log it
+            }
+        };
+    
+        initializeCache();
+    }, []);
+
+    const handleGenerateTreeMap = async () => {
+        try {
+            setLoading(true);
+            
+            // Track if we need to merge with existing cache
+            const existingData = hasStoredData ? await loadTreeMap(url) : null;
+            
+            try {
+                // Run the generation
+                await generateTreeMap();
+            } catch (genError) {
+                console.error('Generation error or stopped:', genError);
+            }
+    
+            // Attempt to save regardless of generation completion
+            if (treeData && Object.keys(treeData).length > 0) {
+                let dataToSave = treeData;
+                let nodesToSave = expandedNodes;
+    
+                // If we have existing data, merge it with new data
+                if (existingData && existingData.treeData) {
+                    dataToSave = {
+                        ...existingData.treeData,
+                        ...treeData
+                    };
+                    nodesToSave = new Set([
+                        ...Array.from(existingData.expandedNodes),
+                        ...Array.from(expandedNodes)
+                    ]);
+                }
+    
+                await saveTreeMap(url, dataToSave, nodesToSave);
+                addConsoleMessage('Tree map cached');
+                setHasStoredData(true);
+            }
+        } catch (error) {
+            console.error('Cache operation error:', error);
+            addConsoleMessage('Failed to cache tree map');
+        } finally {
+            setLoading(false);
         }
-    }, [error, statusMessage, setError, setStatusMessage]);
+    };
+    
+    const handleLoadTreeMap = async () => {
+        try {
+            setLoading(true);
+            
+            const data = await loadTreeMap(url);
+            if (data && data.treeData) {
+                setTreeData(data.treeData);
+                setExpandedNodes(data.expandedNodes);
+                
+                const age = Math.round((Date.now() - data.timestamp) / (1000 * 60));
+                addConsoleMessage(`Loaded cached tree map from ${age} minutes ago`);
+            } else {
+                throw new Error('No cached data found');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            addConsoleMessage('Failed to load cached tree map');
+            setHasStoredData(false);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSearchChange = (e) => {
         const searchTerm = e.target.value;
@@ -227,17 +314,28 @@ const SidePanel = ({
             </div>
             <div className="flex space-x-2 mb-3">
                 <button
-                    onClick={generateTreeMap}
+                    onClick={handleLoadTreeMap}
+                    disabled={loading || !hasStoredData}
+                    className={`flex-1 ${
+                        darkMode ? 'bg-green-600' : 'bg-green-500'
+                    } text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
+                >
+                    Load Tree Map
+                </button>
+                <button
+                    onClick={handleGenerateTreeMap}
                     disabled={loading}
-                    className={`flex-1 ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
+                    className={`flex-1 ${
+                        darkMode ? 'bg-blue-600' : 'bg-blue-500'
+                    } text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
                 >
                     {loading ? (
                         <div className="flex items-center">
-                            <span>Generating...</span>
+                            <span>Processing...</span>
                             <div className="loading-swirl"></div>
                         </div>
                     ) : (
-                        'Generate Tree Map'
+                        hasStoredData ? 'Regenerate Tree Map' : 'Generate Tree Map'
                     )}
                 </button>
                 {loading && (

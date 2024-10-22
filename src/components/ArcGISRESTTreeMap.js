@@ -81,22 +81,23 @@ const ArcGISRESTTreeMap = () => {
   }, []);
 
   const generateTreeMap = async () => {
-    setLoading(true);
-    setError(null);
-
-    const baseUrl = url.trim();
-
-    if (previousBaseUrlRef.current !== baseUrl) {
-      setTreeData({});
-      setExpandedNodes(new Set());
-      setProcessedUrls(new Set());
-      previousBaseUrlRef.current = baseUrl;
-    }
-
-    const controller = new AbortController();
-    setAbortController(controller);
-
     try {
+      setLoading(true);
+      setError(null);
+  
+      const baseUrl = url.trim();
+  
+      if (previousBaseUrlRef.current !== baseUrl) {
+        setTreeData({});
+        setExpandedNodes(new Set());
+        setProcessedUrls(new Set());
+        previousBaseUrlRef.current = baseUrl;
+      }
+  
+      const controller = new AbortController();
+      setAbortController(controller);
+  
+      // Wait for the services to be fetched and displayed
       await fetchAndDisplayServices(
         baseUrl,
         '',
@@ -109,8 +110,11 @@ const ArcGISRESTTreeMap = () => {
         setProcessedUrls,
         treeData
       );
+  
+      return true;
     } catch (err) {
       setError(err.message);
+      throw err;
     } finally {
       setLoading(false);
       setAbortController(null);
@@ -202,9 +206,11 @@ const ArcGISRESTTreeMap = () => {
           skipProperties={skipProperties}
           setSkipProperties={setSkipProperties}
           loading={loading}
+          setLoading={setLoading}
           generateTreeMap={generateTreeMap}
           handleStopProcessing={handleStopProcessing}
           treeData={treeData}
+          setTreeData={setTreeData}
           filteredTreeData={filteredTreeData}
           expandedNodes={expandedNodes}
           setExpandedNodes={setExpandedNodes}
@@ -227,6 +233,7 @@ const ArcGISRESTTreeMap = () => {
           handleDownloadLayer={handleDownloadLayer}
           zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, mapRef.current)}
           assignColorToLayer={assignColorToLayer}
+          addConsoleMessage={addConsoleMessage}
         />
 
         <ContextMenu
