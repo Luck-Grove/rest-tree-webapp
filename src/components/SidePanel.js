@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetInputFocus, handlePresetSelect } from '../utils/presetUtils';
 import { expandAll, collapseAll } from '../utils/uiHelpers';
 import { exportToCSV } from '../utils/treeUtils';
-import { checkTreeMapExists, loadTreeMap, saveTreeMap, clearOutdatedCache, getCacheStats, clearAllCache } from '../utils/indexedDBUtils';
+import { getDB, checkTreeMapExists, loadTreeMap, saveTreeMap, clearOutdatedCache, getCacheStats, clearAllCache } from '../utils/indexedDBUtils';
 import TreeNode from './TreeNode';
 
 const SidePanel = ({ 
@@ -53,6 +53,28 @@ const SidePanel = ({
     const dropdownRef = useRef(null);
 
     useEffect(() => {
+        const initializeDB = async () => {
+            try {
+                // Handle initialization
+                await getDB();
+                
+                // Proceed with other initialization tasks
+                await clearOutdatedCache();
+                const stats = await getCacheStats();
+                console.log('Cache statistics:', stats);
+                
+                // Check if current URL has cached data
+                const exists = await checkTreeMapExists(url);
+                setHasStoredData(exists);
+            } catch (error) {
+                console.error('Error during initialization:', error);
+            }
+        };
+    
+        initializeDB();
+    }, []); // Empty dependency array
+
+    useEffect(() => {
         fetchXMLPresets().then(setPresets).catch(error => {
             console.error('Error loading XML presets:', error.message);
         });
@@ -65,64 +87,27 @@ const SidePanel = ({
         };
         checkStoredData();
     }, [url]);
-
-    useEffect(() => {
-        const initializeCache = async () => {
-            try {
-                await clearOutdatedCache();
-                const stats = await getCacheStats();
-                console.log('Cache statistics:', stats);
-                
-                // Check if current URL has cached data
-                const exists = await checkTreeMapExists(url);
-                setHasStoredData(exists);
-            } catch (error) {
-                console.error('Error initializing cache:', error);
-                // Don't show error to user, just log it
-            }
-        };
     
-        initializeCache();
-    }, []);
 
     const handleGenerateTreeMap = async () => {
         try {
             setLoading(true);
             
-            // Track if we need to merge with existing cache
-            const existingData = hasStoredData ? await loadTreeMap(url) : null;
+            // Run the generation
+            await generateTreeMap();
             
-            try {
-                // Run the generation
-                await generateTreeMap();
-            } catch (genError) {
-                console.error('Generation error or stopped:', genError);
-            }
+            // Give React a chance to update the state
+            await new Promise(resolve => setTimeout(resolve, 100));
     
-            // Attempt to save regardless of generation completion
+            // Now check and save the data
             if (treeData && Object.keys(treeData).length > 0) {
-                let dataToSave = treeData;
-                let nodesToSave = expandedNodes;
-    
-                // If we have existing data, merge it with new data
-                if (existingData && existingData.treeData) {
-                    dataToSave = {
-                        ...existingData.treeData,
-                        ...treeData
-                    };
-                    nodesToSave = new Set([
-                        ...Array.from(existingData.expandedNodes),
-                        ...Array.from(expandedNodes)
-                    ]);
-                }
-    
-                await saveTreeMap(url, dataToSave, nodesToSave);
-                addConsoleMessage('Tree map cached');
+                await saveTreeMap(url, treeData, expandedNodes);
+                addConsoleMessage('Tree map saved to browser cache.');
                 setHasStoredData(true);
             }
         } catch (error) {
-            console.error('Cache operation error:', error);
-            addConsoleMessage('Failed to cache tree map');
+            console.error('Error:', error);
+            addConsoleMessage('Failed to generate or cache tree map');
         } finally {
             setLoading(false);
         }

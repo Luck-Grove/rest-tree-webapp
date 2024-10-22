@@ -5,7 +5,6 @@ import SearchBar from './SearchBar';
 import LayerManager from './LayerManager';
 import SidePanel from './SidePanel';
 import LeafletMap from './LeafletMap';
-import Button from './Button';
 import ErrorBoundary from './ErrorBoundary';
 
 import { zoomToLayerExtent, getLink } from '../utils/mapUtils';
@@ -18,24 +17,34 @@ import useLayerManager from '../hooks/useLayerManager';
 import useContextMenu from '../hooks/useContextMenu';
 import { useDarkMode } from '../contexts/DarkModeContext';
 import { useMap } from '../contexts/MapContext';
+import { getDB, initIndexedDB } from '../utils/indexedDBUtils';
 
 const ArcGISRESTTreeMap = () => {
   const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
   const previousBaseUrlRef = useRef(null);
-  const [treeData, setTreeData] = useState({});
+  const [treeData, setTreeData] = useState({
+    welcome: {
+      id: 'welcome',
+      name: 'Select a server or enter a URL',
+      type: 'folder',
+      parent: null,
+      children: []
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [skipProperties, setSkipProperties] = useState(true);
   const [processedUrls, setProcessedUrls] = useState(() => new Set());
   const [consoleMessages, setConsoleMessages] = useState([]);
-  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [expandedNodes, setExpandedNodes] = useState(new Set(['welcome']));
   const [filteredTreeData, setFilteredTreeData] = useState({});
   const [abortController, setAbortController] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showOnlyActiveLayers, setShowOnlyActiveLayers] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [currentCommand, setCurrentCommand] = useState('');
+  const [dbInitialized, setDbInitialized] = useState(false);
 
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { basemap, handleBasemapChange, mapRef } = useMap();
@@ -72,6 +81,20 @@ const ArcGISRESTTreeMap = () => {
     closeContextMenu,
   } = useContextMenu();
 
+    // Initialize IndexedDB on component mount
+    useEffect(() => {
+      const initDB = async () => {
+        try {
+          await initIndexedDB();
+          setDbInitialized(true);
+        } catch (error) {
+          console.error('Failed to initialize IndexedDB:', error);
+          setError('Failed to initialize cache system');
+        }
+      };
+      initDB();
+    }, []);
+
   useEffect(() => {
     setFilteredTreeData(filterTreeData(treeData, searchTerm));
   }, [treeData, searchTerm]);
@@ -81,23 +104,22 @@ const ArcGISRESTTreeMap = () => {
   }, []);
 
   const generateTreeMap = async () => {
+    setLoading(true);
+    setError(null);
+  
+    const baseUrl = url.trim();
+  
+    if (previousBaseUrlRef.current !== baseUrl) {
+      setTreeData({});
+      setExpandedNodes(new Set());
+      setProcessedUrls(new Set());
+      previousBaseUrlRef.current = baseUrl;
+    }
+  
+    const controller = new AbortController();
+    setAbortController(controller);
+  
     try {
-      setLoading(true);
-      setError(null);
-  
-      const baseUrl = url.trim();
-  
-      if (previousBaseUrlRef.current !== baseUrl) {
-        setTreeData({});
-        setExpandedNodes(new Set());
-        setProcessedUrls(new Set());
-        previousBaseUrlRef.current = baseUrl;
-      }
-  
-      const controller = new AbortController();
-      setAbortController(controller);
-  
-      // Wait for the services to be fetched and displayed
       await fetchAndDisplayServices(
         baseUrl,
         '',
@@ -110,11 +132,8 @@ const ArcGISRESTTreeMap = () => {
         setProcessedUrls,
         treeData
       );
-  
-      return true;
     } catch (err) {
       setError(err.message);
-      throw err;
     } finally {
       setLoading(false);
       setAbortController(null);
