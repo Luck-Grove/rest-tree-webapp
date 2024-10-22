@@ -130,6 +130,10 @@ const ArcGISRESTTreeMap = () => {
     }
 }, [treeData, searchTerm]);
 
+  useEffect(() => {
+    addConsoleMessage("--AGS Multitool--\nUse the side panel to search and select a server.\nGenerate tree maps using Generate Tree Map, or load from cache using Load Tree Map.\nCommand input is similar to AutoCAD. Run 'help' for a list of commands.");
+  }, []);
+
   const addConsoleMessage = useCallback((message) => {
     setConsoleMessages((prev) => [...prev, message]);
   }, []);
