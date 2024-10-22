@@ -1,11 +1,26 @@
-// src/utils/indexedDBUtils.js
-
-const CURRENT_CACHE_VERSION = 1;
-const DB_VERSION = 1;
+const CURRENT_CACHE_VERSION = 3; // Increment version
+const DB_VERSION = 2;
 let dbInstance = null;
+let initializationPromise = null;
+
+// Add URL normalization
+const normalizeUrl = (url) => {
+  try {
+    // Remove trailing slashes and normalize to lowercase
+    return url.replace(/\/+$/, '').toLowerCase();
+  } catch (e) {
+    console.error('URL normalization error:', e);
+    return url;
+  }
+};
 
 export const initIndexedDB = () => {
-  return new Promise((resolve, reject) => {
+  // Ensure we only initialize once
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  initializationPromise = new Promise((resolve, reject) => {
     if (!window.indexedDB) {
       console.error('IndexedDB not supported');
       reject(new Error('IndexedDB not supported'));
@@ -16,6 +31,7 @@ export const initIndexedDB = () => {
 
     request.onerror = (event) => {
       console.error('IndexedDB error:', event.target.error);
+      initializationPromise = null; // Reset on error
       reject(event.target.error);
     };
     
@@ -23,12 +39,14 @@ export const initIndexedDB = () => {
       console.log('Database upgrade needed');
       const db = event.target.result;
       
-      // Handle store creation/upgrade
-      if (!db.objectStoreNames.contains('treeMaps')) {
-        console.log('Creating treeMaps store');
-        const store = db.createObjectStore('treeMaps', { keyPath: 'url' });
-        store.createIndex('version', 'version', { unique: false });
+      // Delete and recreate store on version change
+      if (db.objectStoreNames.contains('treeMaps')) {
+        db.deleteObjectStore('treeMaps');
       }
+      
+      const store = db.createObjectStore('treeMaps', { keyPath: 'url' });
+      store.createIndex('version', 'version', { unique: false });
+      store.createIndex('timestamp', 'timestamp', { unique: false });
     };
 
     request.onsuccess = (event) => {
@@ -37,6 +55,8 @@ export const initIndexedDB = () => {
       resolve(dbInstance);
     };
   });
+
+  return initializationPromise;
 };
 
 export const getDB = async () => {
@@ -46,9 +66,11 @@ export const getDB = async () => {
   return initIndexedDB();
 };
 
-export const saveTreeMap = async (url, treeData, expandedNodes) => {
+export const saveTreeMap = async (url, treeData, expandedNodes, currentGeneration = true) => {
   try {
     const db = await getDB();
+    const normalizedUrl = url.replace(/\/+$/, '').toLowerCase();
+    
     return new Promise((resolve, reject) => {
       if (!db.objectStoreNames.contains('treeMaps')) {
         reject(new Error('Database not properly initialized'));
@@ -59,28 +81,49 @@ export const saveTreeMap = async (url, treeData, expandedNodes) => {
       const store = transaction.objectStore('treeMaps');
       
       const dataToStore = {
-        url: url,
+        url: normalizedUrl,
         treeData: treeData,
         expandedNodes: Array.from(expandedNodes),
         timestamp: Date.now(),
-        version: CURRENT_CACHE_VERSION
+        version: CURRENT_CACHE_VERSION,
+        generation: currentGeneration ? 'current' : 'previous'
       };
 
       console.log('Saving tree map data:', {
-        url,
+        url: normalizedUrl,
         dataSize: Object.keys(treeData).length,
-        expandedNodesSize: expandedNodes.size
+        expandedNodesSize: expandedNodes.size,
+        generation: dataToStore.generation,
+        timestamp: dataToStore.timestamp
       });
 
-      const request = store.put(dataToStore);
+      // First, check if we need to update the previous generation
+      const getExistingRequest = store.get(normalizedUrl);
       
-      request.onerror = (event) => {
-        console.error('Error saving data:', event.target.error);
-        reject(event.target.error);
+      getExistingRequest.onsuccess = () => {
+        const existingData = getExistingRequest.result;
+        
+        // If saving current generation and there's existing data, save it as previous
+        if (currentGeneration && existingData) {
+          const previousData = {
+            ...existingData,
+            generation: 'previous',
+            timestamp: Date.now() - 1 // Ensure proper ordering
+          };
+          store.put(previousData);
+        }
+        
+        // Save the new data
+        const saveRequest = store.put(dataToStore);
+        
+        saveRequest.onerror = (event) => {
+          console.error('Error saving data:', event.target.error);
+          reject(event.target.error);
+        };
       };
 
       transaction.oncomplete = () => {
-        console.log('Successfully saved tree map data');
+        console.log(`Successfully saved tree map data (${dataToStore.generation} generation)`);
         resolve(true);
       };
     });
@@ -90,9 +133,11 @@ export const saveTreeMap = async (url, treeData, expandedNodes) => {
   }
 };
 
-export const loadTreeMap = async (url) => {
+export const loadTreeMap = async (url, preferredGeneration = 'current') => {
   try {
     const db = await getDB();
+    const normalizedUrl = url.replace(/\/+$/, '').toLowerCase();
+
     return new Promise((resolve, reject) => {
       if (!db.objectStoreNames.contains('treeMaps')) {
         reject(new Error('Database not properly initialized'));
@@ -101,7 +146,7 @@ export const loadTreeMap = async (url) => {
 
       const transaction = db.transaction(['treeMaps'], 'readonly');
       const store = transaction.objectStore('treeMaps');
-      const request = store.get(url);
+      const request = store.get(normalizedUrl);
       
       request.onerror = () => {
         console.error('Error loading tree map:', request.error);
@@ -111,13 +156,21 @@ export const loadTreeMap = async (url) => {
       request.onsuccess = () => {
         const result = request.result;
         if (result && result.version === CURRENT_CACHE_VERSION) {
-          resolve({
-            treeData: result.treeData,
-            expandedNodes: new Set(result.expandedNodes),
-            timestamp: result.timestamp,
-            version: result.version
-          });
+          if (result.generation === preferredGeneration || !result.generation) {
+            console.log(`Successfully loaded ${preferredGeneration} generation cache for ${normalizedUrl}`);
+            resolve({
+              treeData: result.treeData,
+              expandedNodes: new Set(result.expandedNodes),
+              timestamp: result.timestamp,
+              version: result.version,
+              generation: result.generation || 'current'
+            });
+          } else {
+            console.log(`No ${preferredGeneration} generation cache found for ${normalizedUrl}`);
+            resolve(null);
+          }
         } else {
+          console.log(`No valid cache found for ${normalizedUrl}`);
           resolve(null);
         }
       };
@@ -131,6 +184,8 @@ export const loadTreeMap = async (url) => {
 export const checkTreeMapExists = async (url) => {
   try {
     const db = await getDB();
+    const normalizedUrl = normalizeUrl(url);
+
     return new Promise((resolve, reject) => {
       if (!db.objectStoreNames.contains('treeMaps')) {
         resolve(false);
@@ -139,7 +194,7 @@ export const checkTreeMapExists = async (url) => {
 
       const transaction = db.transaction(['treeMaps'], 'readonly');
       const store = transaction.objectStore('treeMaps');
-      const request = store.get(url);
+      const request = store.get(normalizedUrl);
       
       request.onerror = () => {
         console.error('Error checking tree map:', request.error);
@@ -149,7 +204,7 @@ export const checkTreeMapExists = async (url) => {
       request.onsuccess = () => {
         const result = request.result;
         const exists = Boolean(result && result.version === CURRENT_CACHE_VERSION);
-        console.log(`Cache check for ${url}: ${exists ? 'Found' : 'Not found'}`);
+        console.log(`Cache check for ${normalizedUrl}: ${exists ? 'Found' : 'Not found'}`);
         resolve(exists);
       };
     });

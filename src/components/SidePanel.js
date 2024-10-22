@@ -2,20 +2,20 @@ import React, { useState, useRef, useEffect } from 'react';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetInputFocus, handlePresetSelect } from '../utils/presetUtils';
 import { expandAll, collapseAll } from '../utils/uiHelpers';
 import { exportToCSV } from '../utils/treeUtils';
-import { getDB, checkTreeMapExists, loadTreeMap, saveTreeMap, clearOutdatedCache, getCacheStats } from '../utils/indexedDBUtils';
+import { getDB, checkTreeMapExists, loadTreeMap, clearOutdatedCache, getCacheStats } from '../utils/indexedDBUtils';
 import TreeNode from './TreeNode';
 
 const SidePanel = ({ 
     darkMode, 
-    toggleDarkMode, 
-    url, 
-    setUrl, 
-    skipProperties, 
-    setSkipProperties, 
+    toggleDarkMode,
+    url,
+    setUrl,
+    skipProperties,
+    setSkipProperties,
     loading,
-    setLoading, 
-    generateTreeMap, 
-    handleStopProcessing, 
+    setLoading,
+    generateTreeMap,
+    handleStopProcessing,
     treeData,
     setTreeData,
     filteredTreeData,
@@ -83,7 +83,7 @@ const SidePanel = ({
         };
     
         initializeDB();
-    }, []);
+    }, [url]);
 
     useEffect(() => {
         fetchXMLPresets().then(setPresets).catch(error => {
@@ -99,25 +99,10 @@ const SidePanel = ({
         checkStoredData();
     }, [url]);
 
-    const handleGenerateTreeMap = async () => {
-        try {
-            setLoading(true);
-            await generateTreeMap();
-            await new Promise(resolve => setTimeout(resolve, 100));
-    
-            if (treeData && Object.keys(treeData).length > 0) {
-                await saveTreeMap(url, treeData, expandedNodes);
-                addConsoleMessage('Tree map saved to browser cache.');
-                setHasStoredData(true);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            addConsoleMessage('Failed to generate or cache tree map');
-        } finally {
-            setLoading(false);
-        }
+    const handleGenerateTreeMap = () => {
+        generateTreeMap(setHasStoredData);
     };
-    
+
     const handleLoadTreeMap = async () => {
         try {
             setLoading(true);
@@ -340,17 +325,10 @@ const SidePanel = ({
                     onClick={handleLoadTreeMap}
                     disabled={loading || !hasStoredData}
                     className={`flex-1 ${
-                        darkMode ? 'bg-green-600' : 'bg-green-500'
-                    } text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-green-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
-                >
-                    Load Tree Map
-                </button>
-                <button
-                    onClick={handleGenerateTreeMap}
-                    disabled={loading}
-                    className={`flex-1 ${
-                        darkMode ? 'bg-blue-600' : 'bg-blue-500'
-                    } text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
+                        loading
+                            ? (darkMode ? 'bg-blue-600' : 'bg-blue-500')
+                            : (darkMode ? 'bg-green-500' : 'bg-green-500')
+                    } text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-${loading ? 'blue' : 'green'}-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
                 >
                     {loading ? (
                         <div className="flex items-center">
@@ -358,17 +336,23 @@ const SidePanel = ({
                             <div className="loading-swirl"></div>
                         </div>
                     ) : (
+                        'Load Tree Map'
+                    )}
+                </button>
+                <button
+                    onClick={loading ? handleStopProcessing : handleGenerateTreeMap}
+                    className={`flex-1 ${
+                        loading 
+                            ? 'bg-red-600 hover:bg-red-600' 
+                            : (darkMode ? 'bg-blue-600' : 'bg-blue-600')
+                    } text-white px-2 py-1 rounded-md text-xs hover:bg-opacity-90 focus:outline-none focus:ring-1 focus:ring-${loading ? 'red' : 'blue'}-500 focus:ring-opacity-50 transition duration-300 ease-in-out flex items-center justify-center`}
+                >
+                    {loading ? (
+                        'Stop'
+                    ) : (
                         hasStoredData ? 'Regenerate Tree Map' : 'Generate Tree Map'
                     )}
                 </button>
-                {loading && (
-                    <button
-                        onClick={handleStopProcessing}
-                        className="flex-1 bg-red-500 text-white px-2 py-1 rounded-md text-xs hover:bg-red-600 focus:outline-none focus:ring-1 focus:ring-red-500 focus:ring-opacity-50 transition duration-300 ease-in-out"
-                    >
-                        Stop
-                    </button>
-                )}
             </div>
             <div className="mb-3 grid grid-cols-3 gap-2">
                 <button onClick={() => expandAll(setExpandedNodes, treeData)} className={`${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} px-2 py-1 rounded-md text-xs hover:bg-opacity-80 focus:outline-none focus:ring-1 focus:ring-opacity-50 transition duration-300 ease-in-out`}>

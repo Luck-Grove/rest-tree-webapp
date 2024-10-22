@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Console from './Console';
 import ContextMenu from './ContextMenu';
 import SearchBar from './SearchBar';
@@ -8,7 +8,7 @@ import LeafletMap from './LeafletMap';
 import ErrorBoundary from './ErrorBoundary';
 
 import { zoomToLayerExtent, getLink } from '../utils/mapUtils';
-import { fetchAndDisplayServices } from '../utils/api';
+import { fetchServicesWithCache } from '../utils/api';
 import { executeCommand } from '../utils/commandUtils';
 import { filterTreeData, toggleNode } from '../utils/treeUtils';
 import { handleDownloadLayer, handleDownloadShapefile } from '../utils/dlHelpers';
@@ -17,7 +17,7 @@ import useLayerManager from '../hooks/useLayerManager';
 import useContextMenu from '../hooks/useContextMenu';
 import { useDarkMode } from '../contexts/DarkModeContext';
 import { useMap } from '../contexts/MapContext';
-import { getDB, initIndexedDB, saveTreeMap } from '../utils/indexedDBUtils';
+import { initIndexedDB, getCacheStats } from '../utils/indexedDBUtils';
 
 const WELCOME_NODE = {
   id: 'welcome',
@@ -29,13 +29,12 @@ const WELCOME_NODE = {
 
 const ArcGISRESTTreeMap = () => {
   const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
-  const previousBaseUrlRef = useRef(null);
   const [treeData, setTreeData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [hasStoredData, setHasStoredData] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [skipProperties, setSkipProperties] = useState(true);
-  const [processedUrls, setProcessedUrls] = useState(() => new Set());
   const [consoleMessages, setConsoleMessages] = useState([]);
   const [expandedNodes, setExpandedNodes] = useState(new Set(['welcome']));
   const [filteredTreeData, setFilteredTreeData] = useState({});
@@ -44,7 +43,6 @@ const ArcGISRESTTreeMap = () => {
   const [showOnlyActiveLayers, setShowOnlyActiveLayers] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [currentCommand, setCurrentCommand] = useState('');
-  const [dbInitialized, setDbInitialized] = useState(false);
   const [isInitialState, setIsInitialState] = useState(true);
 
   const { darkMode, toggleDarkMode } = useDarkMode();
@@ -87,10 +85,10 @@ const ArcGISRESTTreeMap = () => {
     const initDB = async () => {
       try {
         await initIndexedDB();
-        setDbInitialized(true);
+        const stats = await getCacheStats();
+        console.log('Cache initialized:', stats);
       } catch (error) {
-        console.error('Failed to initialize IndexedDB:', error);
-        setError('Failed to initialize cache system');
+        console.error('Cache initialization failed:', error);
       }
     };
     initDB();
@@ -112,49 +110,62 @@ const ArcGISRESTTreeMap = () => {
     }
   }, [url]);
 
+  useEffect(() => {
+    if (searchTerm && treeData) {
+        // Get all folder and service IDs that should be expanded
+        const nodesToExpand = Object.keys(treeData).filter(id => {
+            const node = treeData[id];
+            return node.hasChildren || 
+                   node.type === 'MapServer' || 
+                   node.type === 'FeatureServer' ||
+                   node.type === 'folder';
+        });
+        
+        // Add all these nodes to expanded set
+        setExpandedNodes(prev => {
+            const newSet = new Set(prev);
+            nodesToExpand.forEach(id => newSet.add(id));
+            return newSet;
+        });
+    }
+}, [treeData, searchTerm]);
+
   const addConsoleMessage = useCallback((message) => {
     setConsoleMessages((prev) => [...prev, message]);
   }, []);
 
   const generateTreeMap = async () => {
-    setLoading(true);
-    setError(null);
-    setIsInitialState(false);  // Ensure welcome message is hidden when generating
-  
-    const baseUrl = url.trim();
-  
-    if (previousBaseUrlRef.current !== baseUrl) {
-      setTreeData({});
-      setExpandedNodes(new Set());
-      setProcessedUrls(new Set());
-      previousBaseUrlRef.current = baseUrl;
-    }
-  
-    const controller = new AbortController();
-    setAbortController(controller);
-  
     try {
-      await fetchAndDisplayServices(
-        baseUrl,
-        '',
-        controller.signal,
-        setTreeData,
-        addConsoleMessage,
-        skipProperties,
-        selectedLayers,
-        processedUrls,
-        setProcessedUrls,
-        treeData
-      );
-    } catch (err) {
-      setError(err.message);
-      setIsInitialState(true);  // Show welcome message again on error
+        const controller = new AbortController();
+        setAbortController(controller);
+        setLoading(true);
+        setError(null);
+
+        await fetchServicesWithCache({
+            url,
+            signal: controller.signal,
+            setTreeData,
+            addConsoleMessage,
+            skipProperties,
+            assignColorToLayer,
+            selectedLayers,
+            expandedNodes,
+            onCacheResult: (result) => {
+                if (result === 'loaded' || result === 'saved') {
+                    setHasStoredData(true);
+                }
+            }
+        });
+    } catch (error) {
+        if (error.message !== 'Operation was cancelled') {
+            console.error('Error:', error);
+            setError(error.message);
+        }
     } finally {
-      setLoading(false);
-      setAbortController(null);
-      addConsoleMessage('Operation complete.');
+        setLoading(false);
+        setAbortController(null);
     }
-  };
+};
 
   const handleStopProcessing = () => {
     if (abortController) {
@@ -256,6 +267,8 @@ const ArcGISRESTTreeMap = () => {
           setError={setError}
           statusMessage={statusMessage}
           setStatusMessage={setStatusMessage}
+          hasStoredData={hasStoredData}
+          setHasStoredData={setHasStoredData}
           isDownloading={isDownloading}
           selectedLayers={selectedLayers}
           setSelectedLayers={setSelectedLayers}
