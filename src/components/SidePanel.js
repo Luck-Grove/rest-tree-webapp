@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { fetchXMLPresets, handlePresetInputChange, handlePresetInputFocus, handlePresetSelect } from '../utils/presetUtils';
 import { expandAll, collapseAll } from '../utils/uiHelpers';
 import { exportToCSV } from '../utils/treeUtils';
-import { getDB, checkTreeMapExists, loadTreeMap, saveTreeMap, clearOutdatedCache, getCacheStats, clearAllCache } from '../utils/indexedDBUtils';
+import { getDB, checkTreeMapExists, loadTreeMap, saveTreeMap, clearOutdatedCache, getCacheStats } from '../utils/indexedDBUtils';
 import TreeNode from './TreeNode';
 
 const SidePanel = ({ 
@@ -53,17 +53,28 @@ const SidePanel = ({
     const dropdownRef = useRef(null);
 
     useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (presetInputRef.current && 
+                !presetInputRef.current.contains(event.target) && 
+                showPresetDropdown) {
+                setShowPresetDropdown(false);
+                setHighlightedIndex(-1);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showPresetDropdown]);
+
+    useEffect(() => {
         const initializeDB = async () => {
             try {
-                // Handle initialization
                 await getDB();
-                
-                // Proceed with other initialization tasks
                 await clearOutdatedCache();
                 const stats = await getCacheStats();
                 console.log('Cache statistics:', stats);
-                
-                // Check if current URL has cached data
                 const exists = await checkTreeMapExists(url);
                 setHasStoredData(exists);
             } catch (error) {
@@ -72,7 +83,7 @@ const SidePanel = ({
         };
     
         initializeDB();
-    }, []); // Empty dependency array
+    }, []);
 
     useEffect(() => {
         fetchXMLPresets().then(setPresets).catch(error => {
@@ -87,19 +98,13 @@ const SidePanel = ({
         };
         checkStoredData();
     }, [url]);
-    
 
     const handleGenerateTreeMap = async () => {
         try {
             setLoading(true);
-            
-            // Run the generation
             await generateTreeMap();
-            
-            // Give React a chance to update the state
             await new Promise(resolve => setTimeout(resolve, 100));
     
-            // Now check and save the data
             if (treeData && Object.keys(treeData).length > 0) {
                 await saveTreeMap(url, treeData, expandedNodes);
                 addConsoleMessage('Tree map saved to browser cache.');
@@ -116,14 +121,47 @@ const SidePanel = ({
     const handleLoadTreeMap = async () => {
         try {
             setLoading(true);
-            
+    
             const data = await loadTreeMap(url);
             if (data && data.treeData) {
                 setTreeData(data.treeData);
                 setExpandedNodes(data.expandedNodes);
-                
-                const age = Math.round((Date.now() - data.timestamp) / (1000 * 60));
-                addConsoleMessage(`Loaded cached tree map from ${age} minutes ago`);
+    
+                const ageInSeconds = Math.round((Date.now() - data.timestamp) / 1000);
+                let ageMessage;
+    
+                const millennia = Math.floor(ageInSeconds / (60 * 60 * 24 * 365 * 1000));
+                const remainingAfterMillennia = ageInSeconds % (60 * 60 * 24 * 365 * 1000);
+                const years = Math.floor(remainingAfterMillennia / (60 * 60 * 24 * 365));
+                const remainingAfterYears = remainingAfterMillennia % (60 * 60 * 24 * 365);
+                const weeks = Math.floor(remainingAfterYears / (60 * 60 * 24 * 7));
+                const remainingAfterWeeks = remainingAfterYears % (60 * 60 * 24 * 7);
+                const days = Math.floor(remainingAfterWeeks / (60 * 60 * 24));
+                const remainingAfterDays = remainingAfterWeeks % (60 * 60 * 24);
+                const hours = Math.floor(remainingAfterDays / (60 * 60));
+                const remainingAfterHours = remainingAfterDays % (60 * 60);
+                const minutes = Math.floor(remainingAfterHours / 60);
+                const seconds = remainingAfterHours % 60;
+    
+                const pad = (value) => value.toString().padStart(2, '0');
+    
+                if (millennia > 0) {
+                    ageMessage = `${millennia} millenium${millennia === 1 ? '' : 's'}, ${years} year${years === 1 ? '' : 's'} ago (${pad(millennia)}:${pad(years)}:${pad(weeks)}:${pad(days)}:${pad(hours)}:${pad(minutes)}:${pad(seconds)})`;
+                } else if (years > 0) {
+                    ageMessage = `${years} year${years === 1 ? '' : 's'}, ${weeks} week${weeks === 1 ? '' : 's'} ago (${pad(years)}:${pad(weeks)}:${pad(days)}:${pad(hours)}:${pad(minutes)}:${pad(seconds)})`;
+                } else if (weeks > 0) {
+                    ageMessage = `${weeks} week${weeks === 1 ? '' : 's'}, ${days} day${days === 1 ? '' : 's'} ago (${pad(weeks * 7 + days)}:${pad(hours)}:${pad(minutes)}:${pad(seconds)})`;
+                } else if (days > 0) {
+                    ageMessage = `${days} day${days === 1 ? '' : 's'}, ${hours} hour${hours === 1 ? '' : 's'}, ${minutes} minute${minutes === 1 ? '' : 's'}, ${seconds} second${seconds === 1 ? '' : 's'} ago`;
+                } else if (hours > 0) {
+                    ageMessage = `${hours} hour${hours === 1 ? '' : 's'}, ${minutes} minute${minutes === 1 ? '' : 's'}, ${seconds} second${seconds === 1 ? '' : 's'} ago`;
+                } else if (minutes > 0) {
+                    ageMessage = `${minutes} minute${minutes === 1 ? '' : 's'}, ${seconds} second${seconds === 1 ? '' : 's'} ago`;
+                } else {
+                    ageMessage = `${seconds} second${seconds === 1 ? '' : 's'} ago`;
+                }
+    
+                addConsoleMessage(`Loaded cached tree map from ${ageMessage}.`);
             } else {
                 throw new Error('No cached data found');
             }
@@ -289,7 +327,7 @@ const SidePanel = ({
                             onChange={(e) => setSkipProperties(e.target.checked)}
                             className="sr-only"
                         />
-                        <div className={`w-7 h-4 ${darkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded-full shadow-inner`}></div>
+                        <div className={`w-7 h-4 ${darkMode ? 'bg-gray-500' : 'bg-gray-300'} rounded-full shadow-inner`}></div>
                         <div className={`absolute w-2 h-2 bg-white rounded-full shadow inset-y-1 left-1 transition-transform duration-300 ease-in-out ${skipProperties ? 'transform translate-x-3' : ''}`}></div>
                     </div>
                     <div className={`ml-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-xs font-medium`}>
