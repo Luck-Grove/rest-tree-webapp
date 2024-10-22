@@ -3,11 +3,15 @@ import React from 'react';
 const ContextMenu = ({ contextMenu, handleDownloadLayer, handleDownloadShapefile, darkMode, onClose, isLayer, zoomToLayerExtent, getLink }) => {
   if (!contextMenu.visible) return null;
 
+  const pageHeight = window.innerHeight;
+  const isLowerThird = contextMenu.y > (pageHeight * 2) / 3;
+
   const menuStyle = {
-      position: 'fixed',
-      top: `${contextMenu.y}px`,
-      left: `${contextMenu.x}px`,
-      zIndex: 1000,
+    position: 'fixed',
+    top: isLowerThird ? 'auto' : `${contextMenu.y}px`,
+    bottom: isLowerThird ? `${pageHeight - contextMenu.y}px` : 'auto',
+    left: `${contextMenu.x}px`,
+    zIndex: 1000,
   };
 
   const menuItemClass = `px-4 py-2 hover:bg-opacity-80 cursor-pointer ${
