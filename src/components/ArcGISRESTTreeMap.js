@@ -17,20 +17,20 @@ import useLayerManager from '../hooks/useLayerManager';
 import useContextMenu from '../hooks/useContextMenu';
 import { useDarkMode } from '../contexts/DarkModeContext';
 import { useMap } from '../contexts/MapContext';
-import { getDB, initIndexedDB } from '../utils/indexedDBUtils';
+import { getDB, initIndexedDB, saveTreeMap } from '../utils/indexedDBUtils';
+
+const WELCOME_NODE = {
+  id: 'welcome',
+  name: 'Select a server or enter a URL',
+  type: 'folder',
+  parent: null,
+  children: []
+};
 
 const ArcGISRESTTreeMap = () => {
   const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
   const previousBaseUrlRef = useRef(null);
-  const [treeData, setTreeData] = useState({
-    welcome: {
-      id: 'welcome',
-      name: 'Select a server or enter a URL',
-      type: 'folder',
-      parent: null,
-      children: []
-    }
-  });
+  const [treeData, setTreeData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,6 +45,7 @@ const ArcGISRESTTreeMap = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [currentCommand, setCurrentCommand] = useState('');
   const [dbInitialized, setDbInitialized] = useState(false);
+  const [isInitialState, setIsInitialState] = useState(true);
 
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { basemap, handleBasemapChange, mapRef } = useMap();
@@ -81,23 +82,35 @@ const ArcGISRESTTreeMap = () => {
     closeContextMenu,
   } = useContextMenu();
 
-    // Initialize IndexedDB on component mount
-    useEffect(() => {
-      const initDB = async () => {
-        try {
-          await initIndexedDB();
-          setDbInitialized(true);
-        } catch (error) {
-          console.error('Failed to initialize IndexedDB:', error);
-          setError('Failed to initialize cache system');
-        }
-      };
-      initDB();
-    }, []);
-
+  // Initialize IndexedDB on component mount
   useEffect(() => {
-    setFilteredTreeData(filterTreeData(treeData, searchTerm));
-  }, [treeData, searchTerm]);
+    const initDB = async () => {
+      try {
+        await initIndexedDB();
+        setDbInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize IndexedDB:', error);
+        setError('Failed to initialize cache system');
+      }
+    };
+    initDB();
+  }, []);
+
+  // Handle tree data filtering and welcome state
+  useEffect(() => {
+    const displayData = isInitialState && Object.keys(treeData).length === 0
+      ? { welcome: WELCOME_NODE }
+      : treeData;
+
+    setFilteredTreeData(filterTreeData(displayData, searchTerm));
+  }, [treeData, searchTerm, isInitialState]);
+
+  // Reset initial state when URL changes
+  useEffect(() => {
+    if (url) {
+      setIsInitialState(false);
+    }
+  }, [url]);
 
   const addConsoleMessage = useCallback((message) => {
     setConsoleMessages((prev) => [...prev, message]);
@@ -106,6 +119,7 @@ const ArcGISRESTTreeMap = () => {
   const generateTreeMap = async () => {
     setLoading(true);
     setError(null);
+    setIsInitialState(false);  // Ensure welcome message is hidden when generating
   
     const baseUrl = url.trim();
   
@@ -134,6 +148,7 @@ const ArcGISRESTTreeMap = () => {
       );
     } catch (err) {
       setError(err.message);
+      setIsInitialState(true);  // Show welcome message again on error
     } finally {
       setLoading(false);
       setAbortController(null);
