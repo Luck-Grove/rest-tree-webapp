@@ -1,7 +1,7 @@
 import React from 'react';
 
 const TreeNode = ({
-  nodeId, treeData, expandedNodes, toggleNode, selectedLayers = [], setSelectedLayers,
+  nodeId, treeData, expandedNodes, toggleNode, layers, handleAddLayer, handleToggleLayer,
   handleContextMenu, zoomToLayerExtent, darkMode, showOnlyActiveLayers,
   handleDownloadShapefile, handleDownloadGeoJSON, setContextMenu, level = 0,
   setIsDownloading, setStatusMessage, assignColorToLayer
@@ -9,10 +9,8 @@ const TreeNode = ({
   const node = treeData[nodeId];
   if (!node) return null;
   
-  const selectedLayer = Array.isArray(selectedLayers) 
-    ? selectedLayers.find(layer => layer.id === nodeId)
-    : null;
-  const isVisible = selectedLayer ? selectedLayer.visible : false;
+  const layer = layers.find(layer => layer.id === nodeId);
+  const isVisible = layer ? layer.visible : false;
   
   if (showOnlyActiveLayers && !isVisible && node.type === 'layer') return null;
 
@@ -20,7 +18,7 @@ const TreeNode = ({
     .filter(([_, data]) => data.parent === nodeId)
     .map(([childId, _]) => (
       <TreeNode key={childId} nodeId={childId} treeData={treeData} expandedNodes={expandedNodes}
-        toggleNode={toggleNode} selectedLayers={selectedLayers} setSelectedLayers={setSelectedLayers}
+        toggleNode={toggleNode} layers={layers} handleAddLayer={handleAddLayer} handleToggleLayer={handleToggleLayer}
         handleContextMenu={handleContextMenu} zoomToLayerExtent={zoomToLayerExtent}
         darkMode={darkMode} showOnlyActiveLayers={showOnlyActiveLayers}
         handleDownloadShapefile={handleDownloadShapefile} handleDownloadGeoJSON={handleDownloadGeoJSON}
@@ -61,25 +59,18 @@ const TreeNode = ({
 
   const handleCheckboxChange = () => {
     if (isLayer) {
-      setSelectedLayers(prev => {
-        const prevArray = Array.isArray(prev) ? prev : [];
-        const existingLayer = prevArray.find(layer => layer.id === nodeId);
-        if (existingLayer) {
-          return prevArray.map(layer => 
-            layer.id === nodeId ? { ...layer, visible: !layer.visible } : layer
-          );
-        } else {
-          const newLayer = {
-            id: nodeId,
-            name: node.text,
-            visible: true,
-            type: 'arcgis',
-            datasource: node.url || '',
-            color: assignColorToLayer(nodeId, prevArray)
-          };
-          return [newLayer, ...prevArray];
-        }
-      });
+      if (layer) {
+        handleToggleLayer(nodeId);
+      } else {
+        const newLayer = {
+          id: nodeId,
+          name: node.text,
+          layerCategory: 'arcgis',
+          datasource: node.url || '',
+          visible: true,
+        };
+        handleAddLayer(newLayer);
+      }
     }
   };
 

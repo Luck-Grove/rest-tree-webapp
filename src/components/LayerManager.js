@@ -1,14 +1,18 @@
 import React, { useState, useRef, memo, useLayoutEffect, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { storeLayer, getLayers, deleteLayer, initDB, getLayerData } from '../utils/indexedDBUtils';
+import LayerImportPopup from './LayerImportPopup';
 
-const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, onReorderLayers, onAddLayer, darkMode, selectedLayerId, setSelectedLayerId, onLayerColorChange }) => {
-  const [newLayerName, setNewLayerName] = useState('');
+const LayerManager = memo(({ layers = [], onToggleLayer, onRemoveLayer, onReorderLayers, onAddLayer, darkMode, selectedLayerId, setSelectedLayerId, onLayerColorChange }) => {
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
   const containerRef = useRef(null);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
   const [colorPickerLayerId, setColorPickerLayerId] = useState(null);
+  const [uploadedLayers, setUploadedLayers] = useState([]);
 
+  // Color options for the color picker
   const colorGroups = {
     'Pastel Colors': ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#C9C9FF', '#FFB3FF', '#BFFFFF', '#FFFFB3', '#B3FFB3'],
     'Primary & Secondary Colors': ['#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#4B0082', '#EE82EE'],
@@ -16,19 +20,52 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
     'Additional Colors': ['#800000', '#FF69B4', '#FFD700', '#00FF00', '#00FFFF', '#00008B', '#8A2BE2'],
   };
 
+  // Initialize IndexedDB and fetch uploaded layers
+  useEffect(() => {
+    const initializeDB = async () => {
+      try {
+        await initDB();
+        const fetchedLayers = await getLayers();
+        setUploadedLayers(fetchedLayers);
+      } catch (error) {
+        console.error('Error initializing IndexedDB:', error);
+      }
+    };
+    initializeDB();
+  }, []);
+
+  // Handle file upload
+  const handleFileUpload = async (file, directory) => {
+    try {
+      const layer = await storeLayer(file, file.name.split('.').pop().toLowerCase(), directory);
+      setUploadedLayers(prevLayers => [...prevLayers, layer]);
+      onAddLayer({
+        name: layer.name,
+        layerCategory: 'uploaded',
+        datasource: layer.id,
+        directory: directory,
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Error uploading file. Please try again.');
+    }
+  };
+
+  // Handle color box click to open color picker
   const handleColorBoxClick = (e, layerId) => {
     e.stopPropagation();
     const rect = e.target.getBoundingClientRect();
-    const pickerWidth = 200; // Adjusted width to fit labels
-    const pickerHeight = 150; // Adjusted height for color labels
+    const pickerWidth = 200;
+    const pickerHeight = 150;
     const x = rect.left - pickerWidth + window.scrollX;
-    const y = rect.top - pickerHeight - 20 + window.scrollY; // Offset more upwards
+    const y = rect.top - pickerHeight - 20 + window.scrollY;
 
     setColorPickerPosition({ x, y });
     setColorPickerLayerId(layerId);
     setColorPickerVisible(true);
   };
 
+  // Handle color selection from color picker
   const handleColorSelect = (color) => {
     onLayerColorChange(colorPickerLayerId, color);
     setColorPickerVisible(false);
@@ -36,11 +73,13 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
   
   const colorPickerRef = useRef(null);
 
+  // Handle drag end for reordering layers
   const handleDragEnd = (result) => {
     if (!result.destination) return;
     onReorderLayers(result.source.index, result.destination.index);
   };
 
+  // Update layer manager position
   useLayoutEffect(() => {
     if (containerRef.current) {
       const updatePosition = () => {
@@ -61,8 +100,9 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
       window.addEventListener('resize', updatePosition);
       return () => window.removeEventListener('resize', updatePosition);
     }
-  }, [selectedLayers]);
+  }, [layers]);
 
+  // Handle click outside color picker to close it
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -80,100 +120,141 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
     };
   }, [colorPickerVisible]);
   
+  // Handle layer click to select it
   const handleLayerClick = (layerId) => {
-    setSelectedLayerId(layerId);
+    if (typeof setSelectedLayerId === 'function') {
+      setSelectedLayerId(layerId);
+    }
   };
 
+  // Handle removing an uploaded layer
+  const handleRemoveUploadedLayer = async (layerId) => {
+    try {
+      await deleteLayer(layerId);
+      setUploadedLayers(prevLayers => prevLayers.filter(layer => layer.id !== layerId));
+      onRemoveLayer(layerId);
+    } catch (error) {
+      console.error('Error removing uploaded layer:', error);
+      alert('Error removing uploaded layer. Please try again.');
+    }
+  };
+
+  const handleOpenPopup = () => {
+    console.log("Opening Import/Create Layers popup");
+    setIsPopupOpen(true);
+  };
+
+  const handleClosePopup = () => {
+    console.log("Closing Import/Create Layers popup");
+    setIsPopupOpen(false);
+  };
+  
+  const handleAddSavedLayer = async (layer) => {
+    try {
+      const layerData = await getLayerData(layer.id);
+      if (layerData && layerData.data) {
+        onAddLayer({
+          name: layer.name,
+          layerCategory: 'saved',
+          datasource: layer.id,
+          directory: layer.directory,
+          geoJsonData: layerData.data,
+        });
+      } else {
+        console.error('Layer data not found or invalid');
+      }
+    } catch (error) {
+      console.error('Error adding saved layer:', error);
+    }
+  };
+
+  useEffect(() => {
+    console.log("LayerManager rendered, isPopupOpen:", isPopupOpen);
+  }, [isPopupOpen]);
+
   return (
-    <div
-      ref={containerRef}
-      className={`layer-manager ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} p-4 rounded-md shadow-md fixed right-4`}
-      style={{
-        backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-        fontSize: '0.875rem',
-        maxWidth: '300px',
-        width: '100%',
-        zIndex: 1000,
-      }}
-    >
-      <h3 className="text-sm font-semibold mb-4">Layers</h3>
-      <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="layers">
-            {(provided) => (
-              <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
-                {selectedLayers.map((layer, index) => (
-                  <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
-                    {(provided) => (
-                      <li
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
-                        onClick={() => handleLayerClick(layer.id)}
-                      >
-                        <div className="flex items-center">
-                          <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
-                            ☰
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={layer.visible}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              onToggleLayer(layer.id);
-                            }}
-                            className="mr-2"
-                          />
-                          <div
-                            className="w-4 h-4 mr-2 rounded cursor-pointer"
-                            style={{ backgroundColor: layer.color || '#000', minWidth: '16px', minHeight: '16px' }}
-                            onClick={(e) => handleColorBoxClick(e, layer.id)}
-                          ></div>
-                          <span className="text-xs mr-2">{layer.name || layer.text}</span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveLayer(layer.id);
-                          }}
-                          className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
-                          style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+    <>
+      <div
+        ref={containerRef}
+        className={`layer-manager ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} p-4 rounded-md shadow-md fixed right-4`}
+        style={{
+          backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+          fontSize: '0.875rem',
+          maxWidth: '300px',
+          width: '100%',
+          zIndex: 1000,
+        }}
+      >
+        <h3 className="text-sm font-semibold mb-4">Layers</h3>
+        {/* Layer list container */}
+        <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="layers">
+              {(provided) => (
+                <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
+                  {layers.map((layer, index) => (
+                    <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
+                      {(provided) => (
+                        <li
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
+                          onClick={() => handleLayerClick(layer.id)}
                         >
-                          <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
-                        </button>
-                      </li>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </ul>
-            )}
-          </Droppable>
-        </DragDropContext>
+                          <div className="flex items-center">
+                            <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
+                              ☰
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={layer.visible}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                onToggleLayer(layer.id);
+                              }}
+                              className="mr-2"
+                            />
+                            <div
+                              className="w-4 h-4 mr-2 rounded cursor-pointer"
+                              style={{ backgroundColor: layer.color || '#000', minWidth: '16px', minHeight: '16px' }}
+                              onClick={(e) => handleColorBoxClick(e, layer.id)}
+                            ></div>
+                            <span className="text-xs mr-2">{layer.name}</span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              layer.layerCategory === 'uploaded' ? handleRemoveUploadedLayer(layer.id) : onRemoveLayer(layer.id);
+                            }}
+                            className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
+                            style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+                          >
+                            <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
+                          </button>
+                        </li>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </ul>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </div>
+        {layers.length === 0 && (
+          <div className="mb-4">No layers.</div>
+        )}
+        {/* Import/Create Layers button */}
+        <div className="mt-4">
+          <button
+            onClick={handleOpenPopup}
+            className={`w-2/3 px-4 py-1 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-md text-xs`}
+          >
+            Import/Create Layers
+          </button>
+        </div>
       </div>
-      {selectedLayers.length === 0 && (
-        <div className="mb-4">No layers.</div>
-      )}
-      <div className="mt-4 flex">
-        <input
-          type="text"
-          value={newLayerName}
-          onChange={(e) => setNewLayerName(e.target.value)}
-          placeholder="New custom layer..."
-          className={`flex-grow px-2 py-1 rounded-md mr-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-800'}`}
-        />
-        <button
-          onClick={() => {
-            if (newLayerName.trim()) {
-              onAddLayer(newLayerName.trim());
-              setNewLayerName('');
-            }
-          }}
-          className={`px-4 py-1 rounded-md text-sm ${darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'} text-white`}
-        >
-          Add
-        </button>
-      </div>
+      {/* Color picker popup */}
       {colorPickerVisible &&
         ReactDOM.createPortal(
           <div
@@ -216,7 +297,20 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
           </div>,
           document.body
         )}
-    </div>
+      {/* Layer import popup */}
+      <LayerImportPopup
+        isOpen={isPopupOpen}
+        onClose={handleClosePopup}
+        onFileUpload={handleFileUpload}
+        onAddCustomLayer={(name, directory) => onAddLayer({
+          name,
+          layerCategory: 'custom',
+          directory,
+        })}
+        onAddSavedLayer={handleAddSavedLayer}
+        darkMode={darkMode}
+      />
+    </>
   );
 });
 

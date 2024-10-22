@@ -1,25 +1,23 @@
-// src/components/LeafletMap.js
-
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'esri-leaflet';
 import 'leaflet-draw';
-
-import { initializeMap, updateMapLayers, updateBasemap } from '../utils/mapUtils';
+import * as EsriLeaflet from 'esri-leaflet';
+import { initializeMap, updateBasemap, createPopupContent } from '../utils/mapUtils';
 import { executeCommand } from '../utils/commandUtils';
 
 const LeafletMap = ({
   darkMode,
   basemap,
-  selectedLayers,
+  layers,
   addConsoleMessage,
-  currentCommand,
   handleCommand,
   mapRef,
+  handleLayerUpdate
 }) => {
-  const [isMapReady, setIsMapReady] = useState(false);
+  const drawControlRef = useRef(null);
 
   const handleMapKeyDown = useCallback(
     (e) => {
@@ -35,10 +33,7 @@ const LeafletMap = ({
   useEffect(() => {
     const mapInstance = initializeMap('map', darkMode);
     mapRef.current = mapInstance;
-
-    updateBasemap(mapInstance, basemap, darkMode);
-
-    // Add draw controls and other map setups
+    
     const drawControl = new L.Control.Draw({
       position: 'topright',
       draw: {
@@ -59,8 +54,8 @@ const LeafletMap = ({
       edit: false,
     });
     mapInstance.addControl(drawControl);
+    drawControlRef.current = drawControl;
 
-    // Custom rectangle draw handler
     const rectangleButton = document.querySelector('.leaflet-draw-draw-rectangle');
     if (rectangleButton) {
       L.DomEvent.off(rectangleButton, 'click');
@@ -71,7 +66,6 @@ const LeafletMap = ({
       });
     }
 
-    // Handle rectangle creation
     mapInstance.on(L.Draw.Event.CREATED, (event) => {
       if (event.layerType === 'rectangle') {
         if (mapInstance.boundingBox) {
@@ -82,30 +76,105 @@ const LeafletMap = ({
       }
     });
 
-    // Map keydown events
     const mapContainer = document.getElementById('map');
     if (mapContainer) {
       mapContainer.tabIndex = 0;
       mapContainer.addEventListener('keydown', handleMapKeyDown);
     }
 
-    mapInstance.whenReady(() => {
-      setIsMapReady(true);
-    });
-
     return () => {
-      mapInstance.remove();
       if (mapContainer) {
         mapContainer.removeEventListener('keydown', handleMapKeyDown);
       }
+      mapInstance.remove();
     };
-  }, [basemap, darkMode, addConsoleMessage, handleMapKeyDown, mapRef]);
+  }, [darkMode, addConsoleMessage, handleMapKeyDown, mapRef]);
 
   useEffect(() => {
-    if (mapRef.current && isMapReady) {
-      updateMapLayers(mapRef.current, selectedLayers, darkMode);
+    if (mapRef.current) {
+      updateBasemap(mapRef.current, basemap, darkMode);
     }
-  }, [selectedLayers, darkMode, isMapReady, mapRef]);
+  }, [basemap, darkMode, mapRef]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+  
+    // Handle existing layers
+    layers.forEach(layer => {
+      if (layer.visible) {
+        // Only create new layer object if one doesn't exist
+        if (!layer.layerObject) {
+          let newLayerObject;
+          if (layer.layerCategory === 'arcgis') {
+            newLayerObject = EsriLeaflet.featureLayer({
+              url: layer.datasource,
+              style: () => ({ 
+                color: layer.color,
+                weight: 2,
+                fillOpacity: 0.4 
+              })
+            });
+          } else if (layer.geoJsonData) {
+            newLayerObject = L.geoJSON(layer.geoJsonData, {
+              style: {
+                color: layer.color,
+                weight: 2,
+                fillColor: layer.color,
+                fillOpacity: 0.4
+              },
+              pointToLayer: (feature, latlng) => {
+                return L.circleMarker(latlng, {
+                  radius: 6,
+                  fillColor: layer.color,
+                  color: layer.color,
+                  weight: 1,
+                  opacity: 1,
+                  fillOpacity: 0.8,
+                });
+              }
+            });
+  
+            // Add popup handling only once when creating the layer
+            newLayerObject.on('click', (e) => {
+              const properties = e.layer.feature ? e.layer.feature.properties : e.layer.properties;
+              const popupContent = createPopupContent(properties, darkMode);
+              L.popup({
+                offset: L.point(0, -5),
+                maxHeight: 300,
+                maxWidth: 300,
+                className: darkMode ? 'dark-popup' : 'light-popup',
+                autoPan: false
+              })
+                .setLatLng(e.latlng)
+                .setContent(popupContent)
+                .openOn(mapRef.current);
+            });
+  
+            // Add the layer to the map and update the layer state
+            newLayerObject.addTo(mapRef.current);
+            handleLayerUpdate(layer.id, { layerObject: newLayerObject });
+          }
+        } else if (!mapRef.current.hasLayer(layer.layerObject)) {
+          // If layer object exists but isn't on the map, add it
+          layer.layerObject.addTo(mapRef.current);
+        }
+      } else if (layer.layerObject && mapRef.current.hasLayer(layer.layerObject)) {
+        // Remove layer if it should be hidden
+        mapRef.current.removeLayer(layer.layerObject);
+      }
+    });
+  
+    // Cleanup removed layers
+    const currentLayerIds = new Set(layers.map(l => l.id));
+    mapRef.current.eachLayer(mapLayer => {
+      if (!(mapLayer instanceof L.TileLayer)) {
+        const layerStillExists = layers.some(layer => layer.layerObject === mapLayer);
+        if (!layerStillExists) {
+          mapRef.current.removeLayer(mapLayer);
+        }
+      }
+    });
+  }, [layers, darkMode, mapRef, handleLayerUpdate]);
 
   return <div id="map" className="h-full w-full"></div>;
 };

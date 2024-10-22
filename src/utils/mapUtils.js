@@ -1,8 +1,15 @@
+// mapUtils.js
+
 import L from 'leaflet';
 import * as EsriLeaflet from 'esri-leaflet';
+import 'leaflet-kml';
+import { kml } from '@tmcw/togeojson';
+import JSZip from 'jszip';
 
+// Managed layers are stored in a Map with layer IDs as keys
 const managedLayers = new Map();
 
+// Fix Leaflet's default icon paths
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
@@ -21,9 +28,13 @@ export const initializeMap = (mapId, darkMode) => {
     let initialZoom = 2;
 
     if (mapState) {
-        const { lat, lng, zoom } = JSON.parse(mapState);
-        initialView = [lat, lng];
-        initialZoom = zoom;
+        try {
+            const { lat, lng, zoom } = JSON.parse(mapState);
+            initialView = [lat, lng];
+            initialZoom = zoom;
+        } catch (e) {
+            console.warn('Failed to parse map state from cookie');
+        }
     }
 
     const mapInstance = L.map(mapId, {
@@ -35,11 +46,11 @@ export const initializeMap = (mapId, darkMode) => {
         maxZoom: 23,
         wheelPxPerZoomLevel: 100,
         worldCopyJump: true,
-        keyboard:false
+        keyboard: false
     });
+    
     L.control.zoom({ position: 'topright' }).addTo(mapInstance);
 
-    // Add event listener to save map state
     mapInstance.on('moveend', () => {
         const center = mapInstance.getCenter();
         const zoom = mapInstance.getZoom();
@@ -48,59 +59,128 @@ export const initializeMap = (mapId, darkMode) => {
             lng: center.lng,
             zoom: zoom
         });
-        setCookie('mapState', mapState, 365); // Save for 1 year
+        setCookie('mapState', mapState, 365);
     });
-
-    updateBasemap(mapInstance, 'default', darkMode);
 
     return mapInstance;
 };
+    
 
-export const updateMapLayers = (map, selectedLayers, darkMode) => {
+/**
+ * Updates the layers on the map based on the selectedLayers array.
+ * @param {L.Map} map - The Leaflet map instance.
+ * @param {Array} selectedLayers - Array of selected layer objects.
+ * @param {boolean} darkMode - Flag indicating if dark mode is enabled.
+ */
+export const updateMapLayers = async (map, selectedLayers, darkMode, layersRef) => {
     if (!map || !map.getZoom) {
       console.warn('Map is not initialized properly');
       return;
     }
   
     try {
-      // Remove all non-base layers
-      map.eachLayer(layer => {
-        if (!(layer instanceof L.TileLayer)) {
+      // Keep track of currently active layers
+      const activeLayerIds = new Set(selectedLayers.filter(l => l.visible).map(l => l.id));
+      
+      // Remove layers that are no longer selected
+      layersRef.forEach((layer, id) => {
+        if (!activeLayerIds.has(id)) {
           map.removeLayer(layer);
+          layersRef.delete(id);
         }
       });
   
-      // Clear our managed layers
-      managedLayers.clear();
+      // Add or update selected layers in reverse order
+      for (const layer of selectedLayers.slice().reverse()) {
+        if (layer && layer.visible && !layersRef.has(layer.id)) {
+          let newLayer;
+          
+          if (layer.type === 'uploaded') {
+            newLayer = await addUploadedLayer(map, layer, darkMode);
+          } else if (layer.datasource) {
+            newLayer = addArcGISLayer(map, layer, darkMode);
+          }
   
-      // Add selected layers in reverse order
-      selectedLayers.slice().reverse().forEach((layer) => {
-        if (layer && layer.visible && layer.datasource) {
-          // Ensure layer.color is assigned
-          const color = layer.color || '#3388ff';
-  
-          const featureLayer = EsriLeaflet.featureLayer({
-            url: layer.datasource,
-            cacheLayers: false,
-            where: '1=1',
-            style: function () {
-              return { color: color };
-            }
-          }).addTo(map);
-  
-          addClickEventToLayer(featureLayer, map, darkMode);
-          managedLayers.set(layer.id, featureLayer);
+          if (newLayer) {
+            layersRef.set(layer.id, newLayer);
+          }
         }
-      });
+      }
     } catch (error) {
       console.error('Error updating map layers:', error);
     }
   };
+  
+  const addArcGISLayer = (map, layer, darkMode) => {
+    const color = layer.color || '#3388ff';
+  
+    const featureLayer = EsriLeaflet.featureLayer({
+      url: layer.datasource,
+      cacheLayers: false,
+      where: '1=1',
+      style: function () {
+        return { color: color };
+      }
+    }).addTo(map);
+  
+    addClickEventToLayer(featureLayer, map, darkMode);
+    return featureLayer;
+  };
+  
+  const addUploadedLayer = async (map, layer, darkMode) => {
+    const color = layer.color || '#3388ff';
+  
+    try {
+      let geoJsonLayer;
+  
+      if (layer.type === 'kml') {
+        const kmlString = await layer.data;
+        const parser = new DOMParser();
+        const kmlDoc = parser.parseFromString(kmlString, 'text/xml');
+        const geojson = kml(kmlDoc);
+        geoJsonLayer = L.geoJSON(geojson, { style: { color: color } });
+      } else if (layer.type === 'kmz') {
+        const kmzArrayBuffer = await layer.data;
+        const zip = await JSZip.loadAsync(kmzArrayBuffer);
+        const kmlFile = Object.values(zip.files).find(file => file.name.toLowerCase().endsWith('.kml'));
+        if (kmlFile) {
+          const kmlString = await kmlFile.async('string');
+          const parser = new DOMParser();
+          const kmlDoc = parser.parseFromString(kmlString, 'text/xml');
+          const geojson = kml(kmlDoc);
+          geoJsonLayer = L.geoJSON(geojson, { style: { color: color } });
+        } else {
+          throw new Error('No KML file found in KMZ');
+        }
+      } else if (layer.type === 'geojson') {
+        const geojson = typeof layer.data === 'string' ? JSON.parse(await layer.data) : await layer.data;
+        geoJsonLayer = L.geoJSON(geojson, { style: { color: color } });
+      } else {
+        throw new Error('Unsupported layer type');
+      }
+  
+      if (geoJsonLayer) {
+        geoJsonLayer.addTo(map);
+        addClickEventToLayer(geoJsonLayer, map, darkMode);
+        return geoJsonLayer;
+      }
+    } catch (error) {
+      console.error('Error adding uploaded layer:', error);
+      return null;
+    }
+  };
 
+/**
+ * Adds a click event to a layer to display a styled popup.
+ * @param {L.Layer} layer - The Leaflet layer instance.
+ * @param {L.Map} map - The Leaflet map instance.
+ * @param {boolean} darkMode - Flag indicating if dark mode is enabled.
+ */
 const addClickEventToLayer = (layer, map, darkMode) => {
     layer.on('click', function(e) {
+        const properties = e.layer.feature.properties || {};
         const popupContent = '<div class="custom-popup ' + (darkMode ? 'dark' : 'light') + '">' +
-            Object.entries(e.layer.feature.properties)
+            Object.entries(properties)
                 .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
                 .join('<br>') +
             '</div>';
@@ -118,6 +198,10 @@ const addClickEventToLayer = (layer, map, darkMode) => {
     });
 };
 
+/**
+ * Updates the page's background color based on the selected basemap.
+ * @param {string} basemap - The identifier for the selected basemap.
+ */
 const updatePageBackgroundColor = (basemap) => {
     const body = document.body;
     switch (basemap) {
@@ -158,31 +242,32 @@ export const updateBasemap = (map, basemap, darkMode) => {
         }
     };
 
-    let selectedBasemap = basemaps[basemap] || basemaps.default;
-    let tileUrl = basemap === 'default'
+    const selectedBasemap = basemaps[basemap] || basemaps.default;
+    const tileUrl = basemap === 'default'
         ? (darkMode ? selectedBasemap.dark : selectedBasemap.light)
         : selectedBasemap.url;
-
-    let maxNativeZoom = selectedBasemap.maxNativeZoom;
-    let attribution = selectedBasemap.attribution;
 
     if (basemap === 'esriAerial') {
         EsriLeaflet.tiledMapLayer({
             url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
             maxZoom: 23,
-            maxNativeZoom: maxNativeZoom
+            maxNativeZoom: selectedBasemap.maxNativeZoom
         }).addTo(map);
     } else {
         L.tileLayer(tileUrl, {
-            attribution: attribution,
+            attribution: selectedBasemap.attribution,
             maxZoom: 23,
-            maxNativeZoom: maxNativeZoom
+            maxNativeZoom: selectedBasemap.maxNativeZoom
         }).addTo(map);
     }
-
-    updatePageBackgroundColor(basemap);
 };
 
+/**
+ * Zooms the map to the extent of a specified layer.
+ * @param {string|number} layerId - The unique identifier of the layer.
+ * @param {Object} treeData - The data structure containing layer information.
+ * @param {L.Map} map - The Leaflet map instance.
+ */
 export const zoomToLayerExtent = async (layerId, treeData, map) => {
     try {
         const layer = treeData[layerId];
@@ -216,6 +301,11 @@ export const zoomToLayerExtent = async (layerId, treeData, map) => {
     }
 };
 
+/**
+ * Opens a link associated with a layer in a new browser tab.
+ * @param {string|number} layerId - The unique identifier of the layer.
+ * @param {Object} treeData - The data structure containing layer information.
+ */
 export const getLink = (layerId, treeData) => {
     const layer = treeData[layerId];
     if (layer && layer.url) {
@@ -225,6 +315,7 @@ export const getLink = (layerId, treeData) => {
     }
 };
 
+// Cookie utilities
 const setCookie = (name, value, days) => {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
     document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/';
@@ -235,4 +326,12 @@ const getCookie = (name) => {
         const parts = v.split('=');
         return parts[0] === name ? decodeURIComponent(parts[1]) : r;
     }, '');
+};
+
+export const createPopupContent = (properties, darkMode) => {
+    return '<div class="custom-popup ' + (darkMode ? 'dark' : 'light') + '">' +
+        Object.entries(properties)
+            .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+            .join('<br>') +
+        '</div>';
 };

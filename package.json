@@ -9,11 +9,14 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@tmcw/togeojson": "^5.8.1",
     "axios": "^1.7.7",
     "esri-leaflet": "^3.0.12",
     "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
+    "leaflet-kml": "^1.0.1",
     "lodash": "^4.17.21",
     "react": "^18.3.1",
     "react-beautiful-dnd": "^13.1.1",
@@ -22,6 +25,7 @@
     "react-scripts": "5.0.1",
     "tailwind": "^4.0.0",
     "turf": "^3.0.14",
+    "uuid": "^9.0.0",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

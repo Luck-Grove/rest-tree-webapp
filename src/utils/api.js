@@ -64,8 +64,6 @@ export const fetchAndDisplayServices = async (
     setTreeData,
     addConsoleMessage,
     skipProperties,
-    assignColorToLayer,
-    selectedLayers,
     processedUrls,
     treeData
   ) => {
@@ -74,14 +72,7 @@ export const fetchAndDisplayServices = async (
     }
   
     // Ensure processedUrls is a Set
-    let urlSet;
-    if (processedUrls instanceof Set) {
-      urlSet = processedUrls;
-    } else if (Array.isArray(processedUrls)) {
-      urlSet = new Set(processedUrls);
-    } else {
-      urlSet = new Set();
-    }
+    let urlSet = processedUrls instanceof Set ? processedUrls : new Set(processedUrls);
   
     // Check if the URL has already been processed
     if (urlSet.has(url)) {
@@ -131,8 +122,6 @@ export const fetchAndDisplayServices = async (
             setTreeData,
             addConsoleMessage,
             skipProperties,
-            assignColorToLayer,
-            selectedLayers,
             urlSet,
             treeData
           );
@@ -154,30 +143,22 @@ export const fetchAndDisplayServices = async (
           }
   
           const layerId = getNextId();
-          const layerText = `${layer.name} (ID: ${layer.id})`;
+          const layerName = `${layer.name} (ID: ${layer.id})`;
           const layerUrl = `${url}/${layer.id}`;
-          const layerColor = typeof assignColorToLayer === 'function' 
-            ? assignColorToLayer(layerId, selectedLayers)
-            : null;
   
           setTreeData((prevData) => {
-            const newData = addTreeNode(serviceId, layerText, 'layer', layerUrl, layerId, prevData);
-            if (layerColor) {
-              newData[layerId].color = layerColor;
-            }
-            return newData;
+            return addTreeNode(serviceId, layerName, 'layer', layerUrl, layerId, prevData);
           });
   
           // Update treeData with the new data for recursive calls
           treeData = {
             ...treeData,
             [layerId]: {
-              text: layerText,
+              text: layerName,
               parent: serviceId,
               type: 'layer',
               url: layerUrl,
               hasChildren: false,
-              color: layerColor,
             },
           };
         }
@@ -227,8 +208,6 @@ export const fetchAndDisplayServices = async (
             setTreeData,
             addConsoleMessage,
             skipProperties,
-            assignColorToLayer,
-            selectedLayers,
             urlSet,
             treeData
           );
@@ -274,7 +253,6 @@ export const fetchAndDisplayServices = async (
     }
   };
 
-  
 export const processService = async (
     parent,
     service,
@@ -283,8 +261,6 @@ export const processService = async (
     setTreeData,
     addConsoleMessage,
     skipProperties,
-    assignColorToLayer,
-    selectedLayers,
     urlSet,
     treeData
   ) => {
@@ -325,8 +301,6 @@ export const processService = async (
         setTreeData,
         addConsoleMessage,
         skipProperties,
-        assignColorToLayer,
-        selectedLayers,
         urlSet,
         treeData
       );

@@ -5,7 +5,6 @@ import SearchBar from './SearchBar';
 import LayerManager from './LayerManager';
 import SidePanel from './SidePanel';
 import LeafletMap from './LeafletMap';
-import Button from './Button';
 import ErrorBoundary from './ErrorBoundary';
 
 import { zoomToLayerExtent, getLink } from '../utils/mapUtils';
@@ -18,6 +17,7 @@ import useLayerManager from '../hooks/useLayerManager';
 import useContextMenu from '../hooks/useContextMenu';
 import { useDarkMode } from '../contexts/DarkModeContext';
 import { useMap } from '../contexts/MapContext';
+import { initDB } from '../utils/indexedDBUtils';
 
 const ArcGISRESTTreeMap = () => {
   const [url, setUrl] = useState('https://sampleserver6.arcgisonline.com/arcgis/rest/services/');
@@ -36,6 +36,7 @@ const ArcGISRESTTreeMap = () => {
   const [showOnlyActiveLayers, setShowOnlyActiveLayers] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [currentCommand, setCurrentCommand] = useState('');
+  const [selectedLayerId, setSelectedLayerId] = useState(null);
 
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { basemap, handleBasemapChange, mapRef } = useMap();
@@ -54,23 +55,24 @@ const ArcGISRESTTreeMap = () => {
   } = useAddressSuggestions(mapRef);
 
   const {
-    selectedLayers,
-    setSelectedLayers,
-    selectedLayerId,
-    setSelectedLayerId,
+    layers,
     handleLayerColorChange,
     handleToggleLayer,
     handleRemoveLayer,
     handleReorderLayers,
     handleAddLayer,
-    assignColorToLayer,
-  } = useLayerManager(treeData, mapRef);
+    handleLayerUpdate,
+  } = useLayerManager(mapRef);
 
   const {
     contextMenu,
     handleContextMenuClick,
     closeContextMenu,
   } = useContextMenu();
+
+  useEffect(() => {
+    initDB().catch(error => console.error('Failed to initialize IndexedDB:', error));
+  }, []);
 
   useEffect(() => {
     setFilteredTreeData(filterTreeData(treeData, searchTerm));
@@ -104,9 +106,7 @@ const ArcGISRESTTreeMap = () => {
         setTreeData,
         addConsoleMessage,
         skipProperties,
-        selectedLayers,
         processedUrls,
-        setProcessedUrls,
         treeData
       );
     } catch (err) {
@@ -133,6 +133,45 @@ const ArcGISRESTTreeMap = () => {
     [addConsoleMessage, mapRef]
   );
 
+  const handleFileUpload = async (file) => {
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    try {
+      let layerData;
+      if (fileExtension === 'kml') {
+        const kmlText = await file.text();
+        layerData = {
+          name: file.name,
+          layerCategory: 'kml',
+          kmlData: kmlText,
+        };
+      } else if (fileExtension === 'json' || fileExtension === 'geojson') {
+        const fileContent = await file.text();
+        try {
+          const geoJsonData = JSON.parse(fileContent);
+          layerData = {
+            name: file.name,
+            layerCategory: 'geojson',
+            geoJsonData: geoJsonData,
+          };
+        } catch (parseError) {
+          console.error('Error parsing GeoJSON:', parseError);
+          throw new Error(`Invalid JSON in file: ${parseError.message}`);
+        }
+      } else {
+        throw new Error('Unsupported file type');
+      }
+
+      const layerId = handleAddLayer(layerData);
+      if (!layerId) {
+        throw new Error(`Failed to add ${fileExtension.toUpperCase()} layer`);
+      }
+      addConsoleMessage(`Successfully added ${file.name}`);
+    } catch (error) {
+      console.error('Error adding layer:', error);
+      addConsoleMessage(`Error adding ${file.name}: ${error.message}`);
+    }
+  };
+
   return (
     <ErrorBoundary>
       <div
@@ -144,11 +183,12 @@ const ArcGISRESTTreeMap = () => {
         <LeafletMap
           darkMode={darkMode}
           basemap={basemap}
-          selectedLayers={selectedLayers}
+          layers={layers}
           addConsoleMessage={addConsoleMessage}
           currentCommand={currentCommand}
           handleCommand={handleCommand}
           mapRef={mapRef}
+          handleLayerUpdate={handleLayerUpdate}
         />
 
         <SearchBar
@@ -230,8 +270,7 @@ const ArcGISRESTTreeMap = () => {
           statusMessage={statusMessage}
           setStatusMessage={setStatusMessage}
           isDownloading={isDownloading}
-          selectedLayers={selectedLayers}
-          setSelectedLayers={setSelectedLayers}
+          layers={layers}
           handleContextMenu={handleContextMenuClick}
           map={mapRef.current}
           setIsDownloading={setIsDownloading}
@@ -239,7 +278,9 @@ const ArcGISRESTTreeMap = () => {
           handleDownloadShapefile={handleDownloadShapefile}
           handleDownloadLayer={handleDownloadLayer}
           zoomToLayerExtent={(id) => zoomToLayerExtent(id, treeData, mapRef.current)}
-          assignColorToLayer={assignColorToLayer}
+          handleAddLayer={handleAddLayer}
+          handleToggleLayer={handleToggleLayer}
+          handleFileUpload={handleFileUpload}
         />
 
         <ContextMenu
@@ -266,7 +307,7 @@ const ArcGISRESTTreeMap = () => {
         />
 
         <LayerManager
-          selectedLayers={selectedLayers}
+          layers={layers}
           onToggleLayer={handleToggleLayer}
           onRemoveLayer={handleRemoveLayer}
           onReorderLayers={handleReorderLayers}

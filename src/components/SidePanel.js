@@ -27,16 +27,16 @@ const SidePanel = ({
     statusMessage,
     setStatusMessage,
     isDownloading,
-    selectedLayers,
-    setSelectedLayers,
+    layers,
     handleContextMenu,
     map,
     setIsDownloading,
-    assignColorToLayer,
     toggleNode,
     handleDownloadShapefile,
     handleDownloadLayer,
-    zoomToLayerExtent
+    zoomToLayerExtent,
+    handleAddLayer,
+    handleToggleLayer
 }) => {
     const [selectedPreset, setSelectedPreset] = useState('');
     const [presets, setPresets] = useState([]);
@@ -127,8 +127,9 @@ const SidePanel = ({
                 treeData={filteredTreeData}
                 expandedNodes={expandedNodes}
                 toggleNode={(id) => toggleNode(setExpandedNodes, id)}
-                selectedLayers={selectedLayers}
-                setSelectedLayers={setSelectedLayers}
+                layers={layers}
+                handleAddLayer={handleAddLayer}
+                handleToggleLayer={handleToggleLayer}
                 handleContextMenu={handleContextMenu}
                 darkMode={darkMode}
                 showOnlyActiveLayers={showOnlyActiveLayers}
@@ -147,7 +148,6 @@ const SidePanel = ({
                 level={0}
                 setIsDownloading={setIsDownloading}
                 setStatusMessage={setStatusMessage}
-                assignColorToLayer={assignColorToLayer}
             />
         );
     };
