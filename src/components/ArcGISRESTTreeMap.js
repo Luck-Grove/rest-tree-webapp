@@ -158,6 +158,7 @@ const ArcGISRESTTreeMap = () => {
           handleAddressChange={handleAddressChange}
           suggestions={suggestions}
           showSuggestions={showSuggestions}
+          setShowSuggestions={setShowSuggestions}
           handleSuggestionClick={handleSuggestionClick}
           darkMode={darkMode}
           handleKeyDown={(e) => {
@@ -179,6 +180,7 @@ const ArcGISRESTTreeMap = () => {
                   if (selectedSuggestionIndex !== -1) {
                     e.preventDefault();
                     handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+                    setShowSuggestions(false);
                   }
                   break;
                 case 'Escape':

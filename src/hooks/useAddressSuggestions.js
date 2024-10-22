@@ -1,3 +1,4 @@
+// useAddressSuggestions.js
 import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 
@@ -8,15 +9,19 @@ const useAddressSuggestions = (mapRef) => {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const suggestionTimeoutRef = useRef(null);
 
+  const clearSuggestionTimeout = () => {
+    if (suggestionTimeoutRef.current) {
+      clearTimeout(suggestionTimeoutRef.current);
+      suggestionTimeoutRef.current = null;
+    }
+  };
+
   const handleAddressChange = (e) => {
     const value = e.target.value;
     setAddress(value);
     setSelectedSuggestionIndex(-1);
-
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-    }
-
+    clearSuggestionTimeout();
+    
     if (value.length > 2) {
       suggestionTimeoutRef.current = setTimeout(() => {
         fetchSuggestions(value);
@@ -37,9 +42,7 @@ const useAddressSuggestions = (mapRef) => {
           countrycodes: 'us',
         },
       });
-
       const usResults = usResponse.data;
-
       setSuggestions(usResults);
       setShowSuggestions(true);
     } catch (error) {
@@ -48,6 +51,7 @@ const useAddressSuggestions = (mapRef) => {
   };
 
   const handleSuggestionClick = useCallback((suggestion) => {
+    clearSuggestionTimeout();
     setAddress(suggestion.display_name);
     setShowSuggestions(false);
     if (mapRef.current) {
@@ -63,8 +67,16 @@ const useAddressSuggestions = (mapRef) => {
     }
   }, [mapRef]);
 
-  const handleAddressSubmit = useCallback((e) => {
+  const handleAddressSubmit = useCallback((e, inputRef) => {
     e.preventDefault();
+    clearSuggestionTimeout();
+    setShowSuggestions(false);
+    setSuggestions([]);
+    
+    if (inputRef && inputRef.current) {
+      inputRef.current.blur();
+    }
+    
     if (mapRef.current && address) {
       fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`
@@ -92,16 +104,23 @@ const useAddressSuggestions = (mapRef) => {
     }
   }, [address, mapRef]);
 
+  // Cleanup function to be used in useEffect
+  const cleanup = () => {
+    clearSuggestionTimeout();
+  };
+
   return {
     address,
     setAddress,
     suggestions,
     showSuggestions,
+    setShowSuggestions,
     selectedSuggestionIndex,
     setSelectedSuggestionIndex,
     handleAddressChange,
     handleSuggestionClick,
     handleAddressSubmit,
+    cleanup,
   };
 };
 
