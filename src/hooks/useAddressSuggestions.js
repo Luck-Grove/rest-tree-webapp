@@ -5,7 +5,7 @@ import axios from 'axios';
 const useAddressSuggestions = (mapRef) => {
   const [address, setAddress] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hasFocus, setHasFocus] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const suggestionTimeoutRef = useRef(null);
 
@@ -20,6 +20,7 @@ const useAddressSuggestions = (mapRef) => {
     const value = e.target.value;
     setAddress(value);
     setSelectedSuggestionIndex(-1);
+    
     clearSuggestionTimeout();
     
     if (value.length > 2) {
@@ -28,7 +29,6 @@ const useAddressSuggestions = (mapRef) => {
       }, 300);
     } else {
       setSuggestions([]);
-      setShowSuggestions(false);
     }
   };
 
@@ -42,18 +42,17 @@ const useAddressSuggestions = (mapRef) => {
           countrycodes: 'us',
         },
       });
-      const usResults = usResponse.data;
-      setSuggestions(usResults);
-      setShowSuggestions(true);
+      setSuggestions(usResponse.data);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
+      setSuggestions([]);
     }
   };
 
   const handleSuggestionClick = useCallback((suggestion) => {
     clearSuggestionTimeout();
     setAddress(suggestion.display_name);
-    setShowSuggestions(false);
+    
     if (mapRef.current) {
       const { lat, lon, boundingbox } = suggestion;
       if (boundingbox) {
@@ -70,8 +69,6 @@ const useAddressSuggestions = (mapRef) => {
   const handleAddressSubmit = useCallback((e, inputRef) => {
     e.preventDefault();
     clearSuggestionTimeout();
-    setShowSuggestions(false);
-    setSuggestions([]);
     
     if (inputRef && inputRef.current) {
       inputRef.current.blur();
@@ -104,23 +101,17 @@ const useAddressSuggestions = (mapRef) => {
     }
   }, [address, mapRef]);
 
-  // Cleanup function to be used in useEffect
-  const cleanup = () => {
-    clearSuggestionTimeout();
-  };
-
   return {
     address,
     setAddress,
     suggestions,
-    showSuggestions,
-    setShowSuggestions,
+    hasFocus,
+    setHasFocus,
     selectedSuggestionIndex,
     setSelectedSuggestionIndex,
     handleAddressChange,
     handleSuggestionClick,
     handleAddressSubmit,
-    cleanup,
   };
 };
 

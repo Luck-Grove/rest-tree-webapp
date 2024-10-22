@@ -44,8 +44,8 @@ const ArcGISRESTTreeMap = () => {
     address,
     setAddress,
     suggestions,
-    showSuggestions,
-    setShowSuggestions,
+    hasFocus,
+    setHasFocus,
     selectedSuggestionIndex,
     setSelectedSuggestionIndex,
     handleAddressChange,
@@ -157,39 +157,24 @@ const ArcGISRESTTreeMap = () => {
           handleAddressSubmit={handleAddressSubmit}
           handleAddressChange={handleAddressChange}
           suggestions={suggestions}
-          showSuggestions={showSuggestions}
-          setShowSuggestions={setShowSuggestions}
+          hasFocus={hasFocus}
+          setHasFocus={setHasFocus}
           handleSuggestionClick={handleSuggestionClick}
           darkMode={darkMode}
-          handleKeyDown={(e) => {
-            if (showSuggestions) {
-              switch (e.key) {
-                case 'ArrowDown':
-                  e.preventDefault();
-                  setSelectedSuggestionIndex((prevIndex) =>
-                    prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
-                  );
-                  break;
-                case 'ArrowUp':
-                  e.preventDefault();
-                  setSelectedSuggestionIndex((prevIndex) =>
-                    prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
-                  );
-                  break;
-                case 'Enter':
-                  if (selectedSuggestionIndex !== -1) {
-                    e.preventDefault();
-                    handleSuggestionClick(suggestions[selectedSuggestionIndex]);
-                    setShowSuggestions(false);
-                  }
-                  break;
-                case 'Escape':
-                  setShowSuggestions(false);
-                  setSelectedSuggestionIndex(-1);
-                  break;
-                default:
-                  break;
-              }
+          handleKeyDown={(key) => {
+            switch (key) {
+              case 'ArrowDown':
+                setSelectedSuggestionIndex((prevIndex) =>
+                  prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0
+                );
+                break;
+              case 'ArrowUp':
+                setSelectedSuggestionIndex((prevIndex) =>
+                  prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1
+                );
+                break;
+              default:
+                break;
             }
           }}
           selectedSuggestionIndex={selectedSuggestionIndex}
