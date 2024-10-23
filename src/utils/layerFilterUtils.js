@@ -28,3 +28,28 @@ export const clearFilters = (layer) => {
 
   return layer;
 };
+
+// Function to fetch layer fields from ArcGIS REST API
+export const fetchLayerFields = async (layerUrl) => {
+  try {
+    const response = await fetch(`${layerUrl}?f=json`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    if (!data.fields) {
+      throw new Error('No fields found in the layer data');
+    }
+
+    // Extract relevant field information
+    return data.fields.map(field => ({
+      name: field.name,
+      type: field.type,
+      alias: field.alias
+    }));
+  } catch (error) {
+    console.error('Error fetching layer fields:', error);
+    throw error;
+  }
+};

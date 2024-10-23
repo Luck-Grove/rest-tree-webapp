@@ -2,6 +2,7 @@ import React, { useState, useRef, memo, useLayoutEffect, useEffect } from 'react
 import ReactDOM from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import LayerFilterPopup from './LayerFilterPopup';
+import { fetchLayerFields } from '../utils/layerFilterUtils';
 
 const LayerManager = memo(({ 
   selectedLayers = [], 
@@ -99,20 +100,35 @@ const LayerManager = memo(({
     setSelectedLayerId(layerId);
   };
 
-  const handleFilterClick = (e, layer) => {
+  const handleFilterClick = async (e, layer) => {
     e.stopPropagation();
-    setSelectedFilterLayer(layer);
+    let layerWithFields = layer;
+
+    if (!layer.fields && layer.type === 'arcgis') {
+      try {
+        const fields = await fetchLayerFields(layer.datasource);
+        layerWithFields = { ...layer, fields };
+      } catch (error) {
+        console.error('Failed to fetch layer fields:', error);
+        return; // Don't open the popup if we couldn't fetch the fields
+      }
+    }
+
+    setSelectedFilterLayer(layerWithFields);
     setFilterPopupVisible(true);
+    console.log('Filter popup opened for layer:', layerWithFields.name, 'Fields:', layerWithFields.fields); // Debug log
   };
 
   const handleSaveFilters = (filters) => {
     onApplyFilters(selectedFilterLayer.id, filters);
     setFilterPopupVisible(false);
+    console.log('Filters saved and popup closed'); // Debug log
   };
 
   const handleClearFilters = () => {
     onClearFilters(selectedFilterLayer.id);
     setFilterPopupVisible(false);
+    console.log('Filters cleared and popup closed'); // Debug log
   };
 
   return (
