@@ -76,23 +76,30 @@ export const fetchWithCache = async (url, params = {}, useCache = true, signal =
   }
 
   const fetchData = async () => {
-    // Check for abort before making request
-    if (signal?.aborted) {
-        throw new Error('Operation was cancelled');
-    }
+      if (signal?.aborted) {
+          throw new Error('Operation was cancelled');
+      }
 
-    const response = await api.get(url, { 
-        params,
-        signal  // Pass signal to axios
-    });
-    
-    if (useCache) {
-        cache.set(cacheKey, response.data);
-    }
-    return response.data;
-};
+      try {
+          const response = await api.get(url, { 
+              params,
+              signal
+          });
+          
+          if (useCache) {
+              cache.set(cacheKey, response.data);
+          }
+          return response.data;
+      } catch (error) {
+          if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
+              // Convert timeout to a custom error type
+              throw new Error('TIMEOUT');
+          }
+          throw error;
+      }
+  };
 
-    return rateLimiter.enqueue(fetchData);
+  return rateLimiter.enqueue(fetchData);
 };
 
 export const fetchAndDisplayServices = async (
@@ -108,105 +115,126 @@ export const fetchAndDisplayServices = async (
   treeData
 ) => {
   if (signal.aborted) {
-    throw new Error('Operation was cancelled');
+      throw new Error('Operation was cancelled');
   }
 
   let urlSet = processedUrls instanceof Set ? processedUrls : new Set(processedUrls || []);
   let newTreeData = { ...treeData };
   
   if (urlSet.has(url)) {
-    return newTreeData;
+      return newTreeData;
   }
   
   urlSet.add(url);
 
-  // Truncate URL for display
   const truncateUrl = (url) => {
-    // Look for the pattern /services/ and capture everything after it
-    const match = url.match(/.*\/services\/(.*)/);
-    
-    if (match && match[1]) {
-      // match[1] contains everything after the last "/services/"
-      return match[1];
-    }
-    return url;
+      const match = url.match(/.*\/services\/(.*)/);
+      return match && match[1] ? match[1] : url;
   };
 
-  // Output console message only for new content
   const truncatedUrl = truncateUrl(url);
   writeToConsole(
-    <React.Fragment>
-      Processing:{' '}
-      <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-        {truncatedUrl}
-      </a>
-    </React.Fragment>,
-    addConsoleMessage
+      <React.Fragment>
+          Processing:{' '}
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+              {truncatedUrl}
+          </a>
+      </React.Fragment>,
+      addConsoleMessage
   );
 
   try {
-    const data = await fetchWithCache(url, { f: 'json' });
+      const data = await fetchWithCache(url, { f: 'json' });
 
     // Process services
     if (data.services) {
       for (const service of data.services) {
-        if (signal.aborted) throw new Error('Operation was cancelled');
-        
-        // eslint-disable-next-line no-loop-func
-        const serviceResult = await processService(
-          parent,
-          service,
-          url,
-          signal,
-          (updatedData) => {
-            newTreeData = { ...newTreeData, ...updatedData };
-            setTreeData(newTreeData);
-          },
-          addConsoleMessage,
-          skipProperties,
-          assignColorToLayer,
-          selectedLayers,
-          urlSet,
-          newTreeData
-        );
-        
-        if (serviceResult) {
-          newTreeData = { ...newTreeData, ...serviceResult };
-          setTreeData(newTreeData);
-        }
-      }
-    }
-
-    // Process layers with immediate updates
-    if (data.layers) {
-      for (const layer of data.layers) {
-        if (signal.aborted) throw new Error('Operation was cancelled');
-
-        const existingLayer = Object.values(newTreeData).find(
-          node => node.url === `${url}/${layer.id}`
-        );
-        
-        if (!existingLayer) {
-          const layerId = getNextId();
-          const layerText = `${layer.name} (ID: ${layer.id})`;
-          const layerUrl = `${url}/${layer.id}`;
-          const layerColor = typeof assignColorToLayer === 'function' ?
-            assignColorToLayer(layerId, selectedLayers) : null;
-
-          newTreeData = addTreeNode(parent, layerText, 'layer', layerUrl, layerId, newTreeData);
-          if (layerColor) {
-            newTreeData[layerId].color = layerColor;
-          }
+          if (signal.aborted) throw new Error('Operation was cancelled');
           
-          setTreeData(newTreeData);
-        }
+          try {
+              const serviceResult = await processService(
+                  parent,
+                  service,
+                  url,
+                  signal,
+                  (updatedData) => {
+                      newTreeData = { ...newTreeData, ...updatedData };
+                      setTreeData(newTreeData);
+                  },
+                  addConsoleMessage,
+                  skipProperties,
+                  assignColorToLayer,
+                  selectedLayers,
+                  urlSet,
+                  newTreeData
+              );
+              
+              if (serviceResult) {
+                  newTreeData = { ...newTreeData, ...serviceResult };
+                  setTreeData(newTreeData);
+              }
+          } catch (error) {
+              if (error.message === 'TIMEOUT') {
+                  writeToConsole(
+                      `Timeout processing service ${service.name} - skipping and continuing...`,
+                      addConsoleMessage
+                  );
+                  continue;
+              }
+              if (error.message === 'Operation was cancelled') {
+                  throw error;
+              }
+              // Log other errors but continue processing
+              writeToConsole(
+                  `Error processing service ${service.name}: ${error.message} - continuing with next service`,
+                  addConsoleMessage
+              );
+          }
       }
-      
-      if (newTreeData[parent]) {
-        newTreeData[parent].hasChildren = true;
-        setTreeData(newTreeData);
+  }
+
+    // Process layers
+        if (data.layers) {
+          for (const layer of data.layers) {
+              if (signal.aborted) throw new Error('Operation was cancelled');
+
+              try {
+                  const existingLayer = Object.values(newTreeData).find(
+                      node => node.url === `${url}/${layer.id}`
+                  );
+                  
+                  if (!existingLayer) {
+                      const layerId = getNextId();
+                      const layerText = `${layer.name} (ID: ${layer.id})`;
+                      const layerUrl = `${url}/${layer.id}`;
+                      const layerColor = typeof assignColorToLayer === 'function' ?
+                          assignColorToLayer(layerId, selectedLayers) : null;
+
+                      newTreeData = addTreeNode(parent, layerText, 'layer', layerUrl, layerId, newTreeData);
+                      if (layerColor) {
+                          newTreeData[layerId].color = layerColor;
+                      }
+                      
+                      setTreeData(newTreeData);
+                  }
+              } catch (error) {
+                  if (error.message === 'TIMEOUT') {
+                      writeToConsole(
+                          `Timeout processing layer ${layer.name} - skipping and continuing...`,
+                          addConsoleMessage
+                      );
+                      continue;
+                  }
+                  if (error.message === 'Operation was cancelled') {
+                      throw error;
+                  }
+                  writeToConsole(
+                      `Error processing layer ${layer.name}: ${error.message} - continuing with next layer`,
+                      addConsoleMessage
+                  );
+              }
+          }
       }
-    }
 
     // Process folders with immediate updates
     if (data.folders) {
@@ -267,11 +295,18 @@ export const fetchAndDisplayServices = async (
     return newTreeData;
 
   } catch (error) {
-    if (error.name === 'AbortError' || error.message === 'Operation was cancelled') {
-      throw new Error('Operation was cancelled');
-    }
-    writeToConsole(`Error fetching services: ${error.message}`, addConsoleMessage);
-    throw error;
+      if (error.message === 'Operation was cancelled') {
+          throw error;
+      }
+      if (error.message === 'TIMEOUT') {
+          writeToConsole(
+              `Timeout fetching services from ${truncatedUrl} - skipping and continuing...`,
+              addConsoleMessage
+          );
+          return newTreeData;
+      }
+      writeToConsole(`Error fetching services: ${error.message}`, addConsoleMessage);
+      return newTreeData;
   }
 };
 
