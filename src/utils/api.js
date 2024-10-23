@@ -122,13 +122,12 @@ export const fetchAndDisplayServices = async (
 
   // Truncate URL for display
   const truncateUrl = (url) => {
-    const baseUrlPattern = /\/services\/?/;
-    const match = url.match(baseUrlPattern);
-    if (match) {
-      const truncatedPart = url.split(baseUrlPattern)[1];
-      if (truncatedPart && truncatedPart.trim().length > 0) {
-        return truncatedPart;
-      }
+    // Look for the pattern /services/ and capture everything after it
+    const match = url.match(/.*\/services\/(.*)/);
+    
+    if (match && match[1]) {
+      // match[1] contains everything after the last "/services/"
+      return match[1];
     }
     return url;
   };
