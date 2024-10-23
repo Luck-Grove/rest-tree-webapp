@@ -84,11 +84,11 @@ export const updateMapLayers = (map, selectedLayers, darkMode) => {
           if (layer.filters) {
             const filterClauses = Object.entries(layer.filters)
               .filter(([_, value]) => value !== '')
-              .map(([field, value]) => `${field} LIKE '%${value}%'`);
+              .map(([field, value]) => `UPPER(${field}) LIKE UPPER('%${value}%')`);
             if (filterClauses.length > 0) {
               whereClause = filterClauses.join(' AND ');
             }
-          }
+          }          
   
           const featureLayer = EsriLeaflet.featureLayer({
             url: layer.datasource,

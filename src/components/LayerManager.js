@@ -2,7 +2,7 @@ import React, { useState, useRef, memo, useLayoutEffect, useEffect } from 'react
 import ReactDOM from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import LayerFilterPopup from './LayerFilterPopup';
-import { fetchLayerFields } from '../utils/layerFilterUtils';
+import { fetchLayerFields, applyFilters } from '../utils/layerFilterUtils';
 
 const LayerManager = memo(({ 
   selectedLayers = [], 
@@ -100,6 +100,40 @@ const LayerManager = memo(({
     setSelectedLayerId(layerId);
   };
 
+  const handleQueryLayer = async (layer, filters) => {
+    try {
+      const filteredLayer = applyFilters(layer, filters);
+      const where = filteredLayer.definitionExpression || '1=1';
+      const url = `${layer.datasource}/query`;
+  
+      const params = new URLSearchParams({
+        where: where,
+        returnCountOnly: 'true',
+        f: 'json'
+      });
+  
+      const response = await fetch(`${url}?${params.toString()}`, {
+        method: 'GET'
+      });
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+  
+      if (data && data.count !== undefined) {
+        return data.count;
+      } else {
+        throw new Error('Failed to get count from query response');
+      }
+    } catch (error) {
+      console.error('Error querying layer:', error);
+      throw error;
+    }
+  };
+  
+
   const handleFilterClick = async (e, layer) => {
     e.stopPropagation();
     let layerWithFields = layer;
@@ -116,19 +150,16 @@ const LayerManager = memo(({
 
     setSelectedFilterLayer(layerWithFields);
     setFilterPopupVisible(true);
-    console.log('Filter popup opened for layer:', layerWithFields.name, 'Fields:', layerWithFields.fields); // Debug log
   };
 
   const handleSaveFilters = (filters) => {
     onApplyFilters(selectedFilterLayer.id, filters);
     setFilterPopupVisible(false);
-    console.log('Filters saved and popup closed'); // Debug log
   };
 
   const handleClearFilters = () => {
     onClearFilters(selectedFilterLayer.id);
     setFilterPopupVisible(false);
-    console.log('Filters cleared and popup closed'); // Debug log
   };
 
   return (
@@ -283,6 +314,7 @@ const LayerManager = memo(({
           onClear={handleClearFilters}
           onCancel={() => setFilterPopupVisible(false)}
           darkMode={darkMode}
+          onQueryLayer={handleQueryLayer}
         />
       )}
     </>

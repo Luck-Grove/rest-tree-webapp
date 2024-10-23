@@ -5,7 +5,7 @@ export const applyFilters = (layer, filters) => {
   // Create a new definition expression based on the filters
   const definitionExpression = Object.entries(filters)
     .filter(([_, value]) => value !== '')
-    .map(([field, value]) => `${field} LIKE '%${value}%'`)
+    .map(([field, value]) => `UPPER(${field}) LIKE UPPER('%${value}%')`)
     .join(' AND ');
 
   // Apply the definition expression to the layer
