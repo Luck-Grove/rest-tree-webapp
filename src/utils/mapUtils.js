@@ -79,10 +79,21 @@ export const updateMapLayers = (map, selectedLayers, darkMode) => {
           // Ensure layer.color is assigned
           const color = layer.color || '#3388ff';
   
+          // Create the where clause from the filters
+          let whereClause = '1=1';
+          if (layer.filters) {
+            const filterClauses = Object.entries(layer.filters)
+              .filter(([_, value]) => value !== '')
+              .map(([field, value]) => `${field} LIKE '%${value}%'`);
+            if (filterClauses.length > 0) {
+              whereClause = filterClauses.join(' AND ');
+            }
+          }
+  
           const featureLayer = EsriLeaflet.featureLayer({
             url: layer.datasource,
             cacheLayers: false,
-            where: '1=1',
+            where: whereClause,
             style: function () {
               return { color: color };
             }
@@ -95,7 +106,7 @@ export const updateMapLayers = (map, selectedLayers, darkMode) => {
     } catch (error) {
       console.error('Error updating map layers:', error);
     }
-  };
+};
 
 const addClickEventToLayer = (layer, map, darkMode) => {
     layer.on('click', function(e) {

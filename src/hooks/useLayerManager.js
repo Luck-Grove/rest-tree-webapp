@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { applyFilters, clearFilters } from '../utils/layerFilterUtils';
 
 const useLayerManager = (treeData, mapRef) => {
   const [selectedLayers, setSelectedLayers] = useState([]);
@@ -42,6 +43,7 @@ const useLayerManager = (treeData, mapRef) => {
         type: 'arcgis',
         datasource: treeData[layerId].url || '',
         color: treeData[layerId].color || assignColorToLayer(layerId, prevLayers),
+        fields: treeData[layerId].fields || [],
       };
       return [newLayer, ...prevLayers];
     }
@@ -91,10 +93,35 @@ const useLayerManager = (treeData, mapRef) => {
         type: 'custom',
         datasource: '',
         color: assignColorToLayer(newLayerId, prevLayers),
+        fields: [],
       };
       return [newLayer, ...prevLayers];
     });
   }, [assignColorToLayer]);
+
+  const handleApplyFilters = useCallback((layerId, filters) => {
+    setSelectedLayers((prevLayers) => {
+      return prevLayers.map((layer) => {
+        if (layer.id === layerId) {
+          const updatedLayer = applyFilters(layer, filters);
+          return { ...updatedLayer, filters };
+        }
+        return layer;
+      });
+    });
+  }, []);
+
+  const handleClearFilters = useCallback((layerId) => {
+    setSelectedLayers((prevLayers) => {
+      return prevLayers.map((layer) => {
+        if (layer.id === layerId) {
+          const updatedLayer = clearFilters(layer);
+          return { ...updatedLayer, filters: {} };
+        }
+        return layer;
+      });
+    });
+  }, []);
 
   return {
     selectedLayers,
@@ -107,6 +134,8 @@ const useLayerManager = (treeData, mapRef) => {
     handleReorderLayers,
     handleAddLayer,
     assignColorToLayer,
+    handleApplyFilters,
+    handleClearFilters,
   };
 };
 

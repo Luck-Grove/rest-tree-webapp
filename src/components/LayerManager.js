@@ -1,13 +1,28 @@
 import React, { useState, useRef, memo, useLayoutEffect, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import LayerFilterPopup from './LayerFilterPopup';
 
-const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, onReorderLayers, onAddLayer, darkMode, selectedLayerId, setSelectedLayerId, onLayerColorChange }) => {
+const LayerManager = memo(({ 
+  selectedLayers = [], 
+  onToggleLayer, 
+  onRemoveLayer, 
+  onReorderLayers, 
+  onAddLayer, 
+  darkMode, 
+  selectedLayerId, 
+  setSelectedLayerId, 
+  onLayerColorChange,
+  onApplyFilters,
+  onClearFilters
+}) => {
   const [newLayerName, setNewLayerName] = useState('');
   const containerRef = useRef(null);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
   const [colorPickerLayerId, setColorPickerLayerId] = useState(null);
+  const [filterPopupVisible, setFilterPopupVisible] = useState(false);
+  const [selectedFilterLayer, setSelectedFilterLayer] = useState(null);
 
   const colorGroups = {
     'Pastel Colors': ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#C9C9FF', '#FFB3FF', '#BFFFFF', '#FFFFB3', '#B3FFB3'],
@@ -19,10 +34,10 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
   const handleColorBoxClick = (e, layerId) => {
     e.stopPropagation();
     const rect = e.target.getBoundingClientRect();
-    const pickerWidth = 200; // Adjusted width to fit labels
-    const pickerHeight = 150; // Adjusted height for color labels
+    const pickerWidth = 200;
+    const pickerHeight = 150;
     const x = rect.left - pickerWidth + window.scrollX;
-    const y = rect.top - pickerHeight - 20 + window.scrollY; // Offset more upwards
+    const y = rect.top - pickerHeight - 20 + window.scrollY;
 
     setColorPickerPosition({ x, y });
     setColorPickerLayerId(layerId);
@@ -84,139 +99,177 @@ const LayerManager = memo(({ selectedLayers = [], onToggleLayer, onRemoveLayer, 
     setSelectedLayerId(layerId);
   };
 
+  const handleFilterClick = (e, layer) => {
+    e.stopPropagation();
+    setSelectedFilterLayer(layer);
+    setFilterPopupVisible(true);
+  };
+
+  const handleSaveFilters = (filters) => {
+    onApplyFilters(selectedFilterLayer.id, filters);
+    setFilterPopupVisible(false);
+  };
+
+  const handleClearFilters = () => {
+    onClearFilters(selectedFilterLayer.id);
+    setFilterPopupVisible(false);
+  };
+
   return (
-    <div
-      ref={containerRef}
-      className={`layer-manager ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} p-4 rounded-md shadow-md fixed right-4`}
-      style={{
-        backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-        fontSize: '0.875rem',
-        maxWidth: '300px',
-        width: '100%',
-        zIndex: 1000,
-      }}
-    >
-      <h3 className="text-sm font-semibold mb-4">Layers</h3>
-      <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="layers">
-            {(provided) => (
-              <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
-                {selectedLayers.map((layer, index) => (
-                  <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
-                    {(provided) => (
-                      <li
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
-                        onClick={() => handleLayerClick(layer.id)}
-                      >
-                        <div className="flex items-center">
-                          <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
-                            ☰
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={layer.visible}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              onToggleLayer(layer.id);
-                            }}
-                            className="mr-2"
-                          />
-                          <div
-                            className="w-4 h-4 mr-2 rounded cursor-pointer"
-                            style={{ backgroundColor: layer.color || '#000', minWidth: '16px', minHeight: '16px' }}
-                            onClick={(e) => handleColorBoxClick(e, layer.id)}
-                          ></div>
-                          <span className="text-xs mr-2">{layer.name || layer.text}</span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveLayer(layer.id);
-                          }}
-                          className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
-                          style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+    <>
+      <div
+        ref={containerRef}
+        className={`layer-manager ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} p-4 rounded-md shadow-md fixed right-4`}
+        style={{
+          backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+          fontSize: '0.875rem',
+          maxWidth: '300px',
+          width: '100%',
+          zIndex: 1000,
+        }}
+      >
+        <h3 className="text-sm font-semibold mb-4">Layers</h3>
+        <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="layers">
+              {(provided) => (
+                <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 mb-4">
+                  {selectedLayers.map((layer, index) => (
+                    <Draggable key={layer.id} draggableId={layer.id.toString()} index={index}>
+                      {(provided) => (
+                        <li
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
+                          onClick={() => handleLayerClick(layer.id)}
                         >
-                          <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
-                        </button>
-                      </li>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </ul>
-            )}
-          </Droppable>
-        </DragDropContext>
-      </div>
-      {selectedLayers.length === 0 && (
-        <div className="mb-4">No layers.</div>
-      )}
-      <div className="mt-4 flex">
-        <input
-          type="text"
-          value={newLayerName}
-          onChange={(e) => setNewLayerName(e.target.value)}
-          placeholder="New custom layer..."
-          className={`flex-grow px-2 py-1 rounded-md mr-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-800'}`}
-        />
-        <button
-          onClick={() => {
-            if (newLayerName.trim()) {
-              onAddLayer(newLayerName.trim());
-              setNewLayerName('');
-            }
-          }}
-          className={`px-4 py-1 rounded-md text-sm ${darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'} text-white`}
-        >
-          Add
-        </button>
-      </div>
-      {colorPickerVisible &&
-        ReactDOM.createPortal(
-          <div
-            className="color-picker-popup p-2 rounded shadow-md"
-            style={{
-              position: 'absolute',
-              top: colorPickerPosition.y,
-              left: colorPickerPosition.x,
-              backgroundColor: darkMode ? '#1f2937' : '#ffffff',
-              border: '1px solid #ccc',
-              zIndex: 10000,
-              width: '200px',
-            }}
-            ref={colorPickerRef}
-          >
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-semibold" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>Colors</h4>
-              <button
-                onClick={() => setColorPickerVisible(false)}
-                className="text-xs p-1 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700"
-              >
-                ✕
-              </button>
-            </div>
-            {Object.entries(colorGroups).map(([groupName, colors]) => (
-              <div key={groupName} className="mb-2">
-                <h4 className="text-xs font-semibold mb-1" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>{groupName}</h4>
-                <div className="grid grid-cols-6 gap-1">
-                  {colors.map((colorOption) => (
-                    <div
-                      key={colorOption}
-                      className="w-5 h-5 rounded cursor-pointer"
-                      style={{ backgroundColor: colorOption, minWidth: '20px', minHeight: '20px' }}
-                      onClick={() => handleColorSelect(colorOption)}
-                    ></div>
+                          <div className="flex items-center flex-grow mr-2">
+                            <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
+                              ☰
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={layer.visible}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                onToggleLayer(layer.id);
+                              }}
+                              className="mr-2"
+                            />
+                            <div
+                              className="w-4 h-4 mr-2 rounded cursor-pointer flex-shrink-0"
+                              style={{ backgroundColor: layer.color || '#000', minWidth: '16px', minHeight: '16px' }}
+                              onClick={(e) => handleColorBoxClick(e, layer.id)}
+                            ></div>
+                            <span className="text-xs mr-2 break-words">{layer.name || layer.text}</span>
+                          </div>
+                          <div className="flex items-center flex-shrink-0">
+                            <button
+                              onClick={(e) => handleFilterClick(e, layer)}
+                              className={`flex items-center justify-center px-2 py-1 rounded-md text-xs mr-1 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+                              style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                                <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveLayer(layer.id);
+                              }}
+                              className={`flex items-center justify-center px-2 py-1 rounded-md text-xs ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
+                              style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
+                            >
+                              <span style={{ fontSize: '18px', lineHeight: '18px', transform: 'translate(-1px, -2px)' }}>×</span>
+                            </button>
+                          </div>
+                        </li>
+                      )}
+                    </Draggable>
                   ))}
-                </div>
-              </div>
-            ))}
-          </div>,
-          document.body
+                  {provided.placeholder}
+                </ul>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </div>
+        {selectedLayers.length === 0 && (
+          <div className="mb-4">No layers.</div>
         )}
-    </div>
+        <div className="mt-4 flex">
+          <input
+            type="text"
+            value={newLayerName}
+            onChange={(e) => setNewLayerName(e.target.value)}
+            placeholder="New custom layer..."
+            className={`flex-grow px-2 py-1 rounded-md mr-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-800'}`}
+          />
+          <button
+            onClick={() => {
+              if (newLayerName.trim()) {
+                onAddLayer(newLayerName.trim());
+                setNewLayerName('');
+              }
+            }}
+            className={`px-4 py-1 rounded-md text-sm ${darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'} text-white`}
+          >
+            Add
+          </button>
+        </div>
+        {colorPickerVisible &&
+          ReactDOM.createPortal(
+            <div
+              className="color-picker-popup p-2 rounded shadow-md"
+              style={{
+                position: 'absolute',
+                top: colorPickerPosition.y,
+                left: colorPickerPosition.x,
+                backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                border: '1px solid #ccc',
+                zIndex: 10000,
+                width: '200px',
+              }}
+              ref={colorPickerRef}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-semibold" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>Colors</h4>
+                <button
+                  onClick={() => setColorPickerVisible(false)}
+                  className="text-xs p-1 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              {Object.entries(colorGroups).map(([groupName, colors]) => (
+                <div key={groupName} className="mb-2">
+                  <h4 className="text-xs font-semibold mb-1" style={{ color: darkMode ? '#f0f0f0' : '#333' }}>{groupName}</h4>
+                  <div className="grid grid-cols-6 gap-1">
+                    {colors.map((colorOption) => (
+                      <div
+                        key={colorOption}
+                        className="w-5 h-5 rounded cursor-pointer"
+                        style={{ backgroundColor: colorOption, minWidth: '20px', minHeight: '20px' }}
+                        onClick={() => handleColorSelect(colorOption)}
+                      ></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>,
+            document.body
+          )}
+      </div>
+      {filterPopupVisible && (
+        <LayerFilterPopup
+          layer={selectedFilterLayer}
+          onSave={handleSaveFilters}
+          onClear={handleClearFilters}
+          onCancel={() => setFilterPopupVisible(false)}
+          darkMode={darkMode}
+        />
+      )}
+    </>
   );
 });
 
