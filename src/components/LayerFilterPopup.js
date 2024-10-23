@@ -50,15 +50,36 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
     });
   };
 
+  const handleAddAllFields = () => {
+    setSelectedFields([...selectedFields, ...availableFields]);
+    setAvailableFields([]);
+    const newFilters = { ...filters };
+    availableFields.forEach(fieldName => {
+      newFilters[fieldName] = '';
+    });
+    setFilters(newFilters);
+  };
+
+  const handleRemoveAllFields = () => {
+    setAvailableFields([...availableFields, ...selectedFields]);
+    setSelectedFields([]);
+    const newFilters = { ...filters };
+    selectedFields.forEach(fieldName => {
+      delete newFilters[fieldName];
+    });
+    setFilters(newFilters);
+  };
+
   const handleSave = () => {
     onSave(filters);
   };
 
   const handleClear = () => {
-    setFilters({});
-    setSelectedFields([]);
-    setAvailableFields(layer.fields.map(f => f.name));
-    onClear();
+    const clearedFilters = {};
+    selectedFields.forEach(fieldName => {
+      clearedFilters[fieldName] = '';
+    });
+    setFilters(clearedFilters);
   };
 
   const handleTest = async () => {
@@ -108,6 +129,7 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
           </button>
         </div>
         <div className="flex h-full" style={{ height: 'calc(100% - 8rem)' }}>
+          {/* Available Fields */}
           <div className="w-1/2 p-4 flex flex-col">
             <div className="flex-grow overflow-y-auto">
               {filteredAvailableFields.map((field, index) => (
@@ -136,6 +158,28 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
               } border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500`}
             />
           </div>
+
+          {/* Move All Buttons */}
+          <div className="flex flex-col justify-center items-center p-4">
+            <button
+              onClick={handleAddAllFields}
+              className={`mb-2 p-2 rounded text-lg ${
+                darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'
+              } text-white transition-colors duration-150`}
+            >
+              &gt;&gt;
+            </button>
+            <button
+              onClick={handleRemoveAllFields}
+              className={`mt-2 p-2 rounded text-lg ${
+                darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'
+              } text-white transition-colors duration-150`}
+            >
+              &lt;&lt;
+            </button>
+          </div>
+
+          {/* Selected Fields */}
           <div className="w-1/2 p-4 flex flex-col">
             <div className="flex-grow overflow-y-auto">
               {filteredSelectedFields.map((field, index) => (
