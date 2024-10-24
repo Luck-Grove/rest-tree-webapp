@@ -73,7 +73,8 @@ const ArcGISRESTTreeMap = () => {
     handleAddLayer,
     assignColorToLayer,
     handleApplyFilters,
-    handleClearFilters
+    handleClearFilters,
+    layerFilters
   } = useLayerManager(treeData, mapRef);
 
   const {
@@ -337,6 +338,7 @@ const ArcGISRESTTreeMap = () => {
           onLayerColorChange={handleLayerColorChange}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}
+          layerFilters={layerFilters}
         />
       </div>
     </ErrorBoundary>

@@ -1,31 +1,64 @@
 import React, { useState, useEffect } from 'react';
 
-const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryLayer }) => {
+const LayerFilterPopup = ({ layers, selectedLayer, onSave, onClear, onCancel, darkMode, onQueryLayer }) => {
   const [filters, setFilters] = useState({});
   const [availableFields, setAvailableFields] = useState([]);
   const [selectedFields, setSelectedFields] = useState([]);
   const [leftSearch, setLeftSearch] = useState('');
   const [rightSearch, setRightSearch] = useState('');
   const [testResult, setTestResult] = useState('');
+  const [selectedLayers, setSelectedLayers] = useState([]);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState(-1);
 
   useEffect(() => {
-    if (layer && layer.fields) {
-      const initialFilters = {};
-      const initialSelectedFields = [];
-      const initialAvailableFields = [];
-      layer.fields.forEach(field => {
-        if (layer.filters?.[field.name]) {
-          initialFilters[field.name] = layer.filters[field.name];
-          initialSelectedFields.push(field.name);
-        } else {
-          initialAvailableFields.push(field.name);
+    if (selectedLayer) {
+      setSelectedLayers([selectedLayer]);
+    }
+  }, [selectedLayer]);
+
+  useEffect(() => {
+    if (selectedLayers.length === 0) {
+      setAvailableFields([]);
+      setSelectedFields([]);
+      setFilters({});
+      return;
+    }
+
+    // Get all fields from all selected layers
+    const allFields = new Set();
+    const selectedFieldsSet = new Set();
+    const filterValues = {};
+
+    // First pass: collect all fields
+    selectedLayers.forEach(layer => {
+      if (!layer.fields) return;
+      layer.fields.forEach(field => allFields.add(field.name));
+    });
+
+    // Second pass: check which fields have filters
+    selectedLayers.forEach(layer => {
+      if (!layer.filters) return;
+      Object.entries(layer.filters).forEach(([fieldName, value]) => {
+        if (allFields.has(fieldName) && value !== undefined && value !== '') {
+          selectedFieldsSet.add(fieldName);
+          if (filterValues[fieldName] === undefined) {
+            filterValues[fieldName] = value;
+          } else if (filterValues[fieldName] !== value) {
+            filterValues[fieldName] = '';
+          }
         }
       });
-      setFilters(initialFilters);
-      setSelectedFields(initialSelectedFields);
-      setAvailableFields(initialAvailableFields);
-    }
-  }, [layer]);
+    });
+
+    // Convert sets to arrays
+    const allFieldsArray = Array.from(allFields);
+    const selectedFieldsArray = Array.from(selectedFieldsSet);
+    const availableFieldsArray = allFieldsArray.filter(field => !selectedFieldsSet.has(field));
+
+    setAvailableFields(availableFieldsArray);
+    setSelectedFields(selectedFieldsArray);
+    setFilters(filterValues);
+  }, [selectedLayers]);
 
   const handleFilterChange = (fieldName, value) => {
     setFilters(prevFilters => ({
@@ -51,35 +84,70 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
   };
 
   const handleAddAllFields = () => {
-    setSelectedFields([...selectedFields, ...availableFields]);
+    setSelectedFields(prev => [...prev, ...availableFields]);
     setAvailableFields([]);
     const newFilters = { ...filters };
     availableFields.forEach(fieldName => {
-      newFilters[fieldName] = '';
+      if (!newFilters[fieldName]) {
+        newFilters[fieldName] = '';
+      }
     });
     setFilters(newFilters);
   };
 
   const handleRemoveAllFields = () => {
-    setAvailableFields([...availableFields, ...selectedFields]);
+    setAvailableFields(prev => [...prev, ...selectedFields]);
     setSelectedFields([]);
-    const newFilters = { ...filters };
-    selectedFields.forEach(fieldName => {
-      delete newFilters[fieldName];
+    setFilters({});
+  };
+
+  const handleLayerSelect = (layer, event) => {
+    setSelectedLayers(prev => {
+      let newSelection = [...prev];
+      
+      if (event.ctrlKey || event.metaKey) {
+        const index = newSelection.findIndex(l => l.id === layer.id);
+        if (index === -1) {
+          newSelection.push(layer);
+        } else {
+          newSelection.splice(index, 1);
+        }
+      } else if (event.shiftKey && lastSelectedIndex !== -1) {
+        const currentIndex = layers.findIndex(l => l.id === layer.id);
+        const start = Math.min(lastSelectedIndex, currentIndex);
+        const end = Math.max(lastSelectedIndex, currentIndex);
+        newSelection = layers.slice(start, end + 1);
+      } else {
+        newSelection = [layer];
+      }
+      
+      setLastSelectedIndex(layers.findIndex(l => l.id === layer.id));
+      return newSelection;
     });
-    setFilters(newFilters);
+  };
+
+  const handleSelectAllLayers = () => {
+    setSelectedLayers(layers);
   };
 
   const handleSave = () => {
-    onSave(filters);
+    // Only save fields that have actual filter values
+    const filterUpdate = {};
+    selectedFields.forEach(field => {
+      const value = filters[field];
+      if (value && value.trim() !== '') {
+        filterUpdate[field] = value;
+      }
+    });
+
+    selectedLayers.forEach(layer => {
+      onSave(filterUpdate);
+    });
   };
 
   const handleClear = () => {
-    const clearedFilters = {};
-    selectedFields.forEach(fieldName => {
-      clearedFilters[fieldName] = '';
-    });
-    setFilters(clearedFilters);
+    onClear();
+    handleRemoveAllFields();
   };
 
   const handleTest = async () => {
@@ -88,11 +156,22 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
       if (!onQueryLayer) {
         throw new Error('Query function not provided');
       }
-      const count = await onQueryLayer(layer, filters);
-      if (count > 500) {
+      // Only test with fields that have actual filter values
+      const activeFilters = {};
+      selectedFields.forEach(field => {
+        const value = filters[field];
+        if (value && value.trim() !== '') {
+          activeFilters[field] = value;
+        }
+      });
+
+      const results = await Promise.all(selectedLayers.map(layer => onQueryLayer(layer, activeFilters)));
+      const totalCount = results.reduce((sum, count) => sum + count, 0);
+      
+      if (totalCount > 500) {
         setTestResult('> 500 objects returned');
       } else {
-        setTestResult(`${count} object${count !== 1 ? 's' : ''} returned`);
+        setTestResult(`${totalCount} object${totalCount !== 1 ? 's' : ''} returned`);
       }
     } catch (error) {
       console.error('Error testing filters:', error);
@@ -108,16 +187,12 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
     f.toLowerCase().includes(rightSearch.toLowerCase())
   );
 
-  if (!layer || !layer.fields) {
-    return null;
-  }
-
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div className={`absolute inset-0 ${darkMode ? 'bg-black' : 'bg-gray-500'} opacity-50`} onClick={onCancel}></div>
       <div className={`relative w-full max-w-4xl ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} rounded-lg shadow-xl`} style={{ height: 'calc(100vh - 4rem)' }}>
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-bold">Filter: {layer.name}</h2>
+          <h2 className="text-lg font-bold">Filter Layers</h2>
           <button
             onClick={onCancel}
             className={`text-gray-500 hover:text-gray-700 ${darkMode ? 'hover:text-gray-300' : ''}`}
@@ -128,7 +203,38 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
             </svg>
           </button>
         </div>
-        <div className="flex h-full" style={{ height: 'calc(100% - 8rem)' }}>
+
+        {/* Layer Selection */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-semibold">Select Layers</h3>
+            <button
+              onClick={handleSelectAllLayers}
+              className={`px-2 py-1 text-xs rounded ${
+                darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
+              } text-white`}
+            >
+              Select All
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {layers.map(layer => (
+              <div
+                key={layer.id}
+                onClick={(e) => handleLayerSelect(layer, e)}
+                className={`px-2 py-1 rounded cursor-pointer text-xs ${
+                  selectedLayers.some(l => l.id === layer.id)
+                    ? darkMode ? 'bg-blue-600' : 'bg-blue-500 text-white'
+                    : darkMode ? 'bg-gray-700' : 'bg-gray-200'
+                }`}
+              >
+                {layer.name}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex h-full" style={{ height: 'calc(100% - 16rem)' }}>
           {/* Available Fields */}
           <div className="w-1/2 p-4 flex flex-col">
             <div className="flex-grow overflow-y-auto">
@@ -167,7 +273,7 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
                 darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'
               } text-white transition-colors duration-150`}
             >
-              &gt;&gt;
+              {'>>'}
             </button>
             <button
               onClick={handleRemoveAllFields}
@@ -175,7 +281,7 @@ const LayerFilterPopup = ({ layer, onSave, onClear, onCancel, darkMode, onQueryL
                 darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'
               } text-white transition-colors duration-150`}
             >
-              &lt;&lt;
+              {'<<'}
             </button>
           </div>
 

@@ -132,7 +132,6 @@ const LayerManager = memo(({
       throw error;
     }
   };
-  
 
   const handleFilterClick = async (e, layer) => {
     e.stopPropagation();
@@ -144,7 +143,7 @@ const LayerManager = memo(({
         layerWithFields = { ...layer, fields };
       } catch (error) {
         console.error('Failed to fetch layer fields:', error);
-        return; // Don't open the popup if we couldn't fetch the fields
+        return;
       }
     }
 
@@ -175,7 +174,18 @@ const LayerManager = memo(({
           zIndex: 1000,
         }}
       >
-        <h3 className="text-sm font-semibold mb-4">Layers</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-sm font-semibold">Layers</h3>
+          <button
+            onClick={() => setFilterPopupVisible(true)}
+            className={`flex items-center justify-center px-3 py-1 rounded-md text-xs ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+            style={{ width: '24px', height: '24px', padding: 0 }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+              <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+          </button>
+        </div>
         <div className="layer-list-container" style={{ overflowY: 'auto', maxHeight: '300px' }}>
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="layers">
@@ -190,8 +200,8 @@ const LayerManager = memo(({
                           className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${selectedLayerId === layer.id ? 'border border-blue-500' : ''}`}
                           onClick={() => handleLayerClick(layer.id)}
                         >
-                          <div className="flex items-center flex-grow mr-2">
-                            <span {...provided.dragHandleProps} className="mr-2 cursor-grab">
+                          <div className="flex items-center flex-grow mr-2 min-w-0">
+                            <span {...provided.dragHandleProps} className="mr-2 cursor-grab flex-shrink-0">
                               ☰
                             </span>
                             <input
@@ -201,19 +211,23 @@ const LayerManager = memo(({
                                 e.stopPropagation();
                                 onToggleLayer(layer.id);
                               }}
-                              className="mr-2"
+                              className="mr-2 flex-shrink-0"
                             />
                             <div
                               className="w-4 h-4 mr-2 rounded cursor-pointer flex-shrink-0"
                               style={{ backgroundColor: layer.color || '#000', minWidth: '16px', minHeight: '16px' }}
                               onClick={(e) => handleColorBoxClick(e, layer.id)}
                             ></div>
-                            <span className="text-xs mr-2 break-words">{layer.name || layer.text}</span>
+                            <span className="text-xs mr-2 truncate">{layer.name || layer.text}</span>
                           </div>
                           <div className="flex items-center flex-shrink-0">
                             <button
                               onClick={(e) => handleFilterClick(e, layer)}
-                              className={`flex items-center justify-center px-2 py-1 rounded-md text-xs mr-1 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+                              className={`flex items-center justify-center px-2 py-1 rounded-md text-xs mr-1 ${
+                                layer.filters && Object.keys(layer.filters).length > 0
+                                  ? darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'
+                                  : darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
+                              } text-white`}
                               style={{ width: '18px', height: '18px', minWidth: '18px', minHeight: '18px', padding: 0 }}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
@@ -309,7 +323,8 @@ const LayerManager = memo(({
       </div>
       {filterPopupVisible && (
         <LayerFilterPopup
-          layer={selectedFilterLayer}
+          layers={selectedLayers}
+          selectedLayer={selectedFilterLayer}
           onSave={handleSaveFilters}
           onClear={handleClearFilters}
           onCancel={() => setFilterPopupVisible(false)}
