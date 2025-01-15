@@ -2253,6 +2253,7 @@
     <arcgisfeatureserver name="New York - Oswego County GIS" url="https://services3.arcgis.com/0dC3T96jvK0z64NH/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Otsego County GIS" url="https://dfgdfg.mapxpress.net/arcgis/rest/services/Otsego" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Otsego County GIS 2" url="https://sgsdgf.mapxpress.net/arcgis/rest/services/Otsego" username="" authcfg="" password="" />
+    <arcgisfeatureserver name="New York - Otsego County GIS 3" url="https://cloud1.mapxpress.net/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Putnam County GIS" url="https://services2.arcgis.com/dU6jdOIkCUj2UDe9/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Rochester Local GIS" url="https://maps.cityofrochester.gov/arcssl/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Rochester Local GIS 2" url="https://maps.cityofrochester.gov/arcgis/rest/services/" username="" authcfg="" password="" />
@@ -2837,6 +2838,7 @@
     <arcgisfeatureserver name="Pennsylvania - Philadelphia Local GIS" url="https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Pennsylvania - Philadelphia Local GIS 2" url="https://services.arcgis.com/fLeGjb7u4uXqeF9q/ArcGIS/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Pennsylvania - Pike County GIS" url="https://gis.pikepa.org/arcgis/rest/services/" username="" authcfg="" password="" />
+    <arcgisfeatureserver name="Pennsylvania - Schuylkill County GIS" url="https://services.co.schuylkill.pa.us/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Pennsylvania - Snyder County GIS" url="https://mapservices.pasda.psu.edu/server/rest/services/pasda/SnyderCounty/MapServer/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Pennsylvania - Spring Creek Local GIS" url="https://mapservices.pasda.psu.edu/server/rest/services/pasda/SpringCreek_PA/MapServer/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="Pennsylvania - State GIS" url="https://maps.pasda.psu.edu/ArcGIS/rest/services/" username="" authcfg="" password="" />
