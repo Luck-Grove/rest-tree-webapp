@@ -118,7 +118,21 @@ export const handleDownloadShapefile = async (node, setIsDownloading, setStatusM
                     continue;
                 }
 
-                if (feature.geometry.type.startsWith('Multi')) {
+                // Convert LineStrings to MultiLineStrings, keep other types as is
+                if (feature.geometry.type === 'LineString') {
+                    flattenedFeatures.push({
+                        type: 'Feature',
+                        properties: feature.properties,
+                        geometry: {
+                            type: 'MultiLineString',
+                            coordinates: [feature.geometry.coordinates]
+                        }
+                    });
+                } else if (feature.geometry.type === 'MultiLineString') {
+                    // Keep MultiLineString as is
+                    flattenedFeatures.push(feature);
+                } else if (feature.geometry.type.startsWith('Multi')) {
+                    // Handle other Multi* types by flattening
                     const simpleType = feature.geometry.type.replace('Multi', '');
                     feature.geometry.coordinates.forEach((coords) => {
                         flattenedFeatures.push({
@@ -131,6 +145,7 @@ export const handleDownloadShapefile = async (node, setIsDownloading, setStatusM
                         });
                     });
                 } else {
+                    // Keep other types as is
                     flattenedFeatures.push(feature);
                 }
             }
@@ -180,7 +195,10 @@ export const handleDownloadShapefile = async (node, setIsDownloading, setStatusM
                 // Map geometry type to shpwrite types
                 switch (geomType) {
                     case 'Point': options.types.point = 'Point'; break;
-                    case 'LineString': options.types.line = 'LineString'; break;
+                    case 'LineString': 
+                    case 'MultiLineString': 
+                        options.types.line = 'MultiLineString'; 
+                        break;
                     case 'Polygon': options.types.polygon = 'Polygon'; break;
                     default:
                         console.warn(`Unsupported geometry type: ${geomType}`);
