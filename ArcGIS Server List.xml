@@ -2221,6 +2221,7 @@
     <arcgisfeatureserver name="New York - Clinton County GIS" url="https://services3.arcgis.com/33FPYaVQYNa7sFJ5/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Colonie Local GIS" url="https://spatialags.vhb.com/arcgis/rest/services/29800_Colonie/NY_Town_Colonie/MapServer/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Columbia County GIS" url="https://services3.arcgis.com/F5762GA30C3SyZFy/ArcGIS/rest/services/" username="" authcfg="" password="" />
+    <arcgisfeatureserver name="New York - ConnectALL Projects GIS" url="https://services8.arcgis.com/c8XMnzAXvS7OB2eQ/arcgis/rest/services/" username="" authcfg="" password="" />    
     <arcgisfeatureserver name="New York - Cortland County GIS" url="https://arcgis.axisgis.com/arcgis/rest/services/" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Delaware County GIS" url="https://spatialags.vhb.com/arcgis/rest/services/29822_Delaware" username="" authcfg="" password="" />
     <arcgisfeatureserver name="New York - Dutchess County GIS" url="https://gis.dutchessny.gov/server/rest/services/" username="" authcfg="" password="" />
