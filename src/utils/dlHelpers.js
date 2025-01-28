@@ -155,24 +155,47 @@ export const handleDownloadShapefile = async (node, setIsDownloading, setStatusM
                 console.warn(`Skipped ${invalidFeatureCount} invalid features`);
             }
 
-            setStatusMessage('Grouping features by geometry type...');
-            const featuresByType = flattenedFeatures.reduce((acc, feature) => {
+            setStatusMessage('Analyzing geometry types...');
+            
+            // Group features by base geometry category (point, line, polygon)
+            const featuresByCategory = flattenedFeatures.reduce((acc, feature) => {
+                let category;
                 const geomType = feature.geometry.type;
-                if (!acc[geomType]) {
-                    acc[geomType] = [];
+                
+                if (geomType === 'Point' || geomType === 'MultiPoint') {
+                    category = 'point';
+                } else if (geomType === 'LineString' || geomType === 'MultiLineString') {
+                    category = 'line';
+                } else if (geomType === 'Polygon' || geomType === 'MultiPolygon') {
+                    category = 'polygon';
+                } else {
+                    console.warn(`Unsupported geometry type: ${geomType}`);
+                    return acc;
                 }
-                acc[geomType].push(feature);
+                
+                if (!acc[category]) {
+                    acc[category] = [];
+                }
+                acc[category].push(feature);
                 return acc;
             }, {});
 
-            console.log('Features grouped by type:', Object.keys(featuresByType).map(type => `${type}: ${featuresByType[type].length}`));
+            const categories = Object.keys(featuresByCategory);
+            console.log('Features grouped by category:', categories.map(cat => `${cat}: ${featuresByCategory[cat].length}`));
 
             const baseFileName = node.text.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const zip = new JSZip();
             const compressionLevel = getCompressionLevel(flattenedFeatures.length);
 
-            for (const [geomType, features] of Object.entries(featuresByType)) {
-                setStatusMessage(`Processing ${geomType} features...`);
+            // Warn if multiple geometry categories are present
+            if (categories.length > 1) {
+                const warningMessage = `Warning: Layer contains mixed geometry types (${categories.join(', ')}). Creating separate shapefiles for each type.`;
+                console.warn(warningMessage);
+                setStatusMessage(warningMessage);
+            }
+
+            for (const [category, features] of Object.entries(featuresByCategory)) {
+                setStatusMessage(`Processing ${category} features...`);
                 
                 // Fix field names
                 fixFieldNames(features);
@@ -182,26 +205,23 @@ export const handleDownloadShapefile = async (node, setIsDownloading, setStatusM
                     return feature.geometry && 
                            feature.geometry.coordinates && 
                            feature.geometry.coordinates.length > 0 && 
-                           (geomType !== 'Polygon' || (Array.isArray(feature.geometry.coordinates[0]) && feature.geometry.coordinates[0].length >= 3));
+                           (feature.geometry.type !== 'Polygon' || (Array.isArray(feature.geometry.coordinates[0]) && feature.geometry.coordinates[0].length >= 3));
                 });
 
                 if (validFeatures.length < features.length) {
-                    console.warn(`Skipped ${features.length - validFeatures.length} invalid ${geomType} features`);
+                    console.warn(`Skipped ${features.length - validFeatures.length} invalid ${category} features`);
                 }
 
                 const geojson = { type: "FeatureCollection", features: validFeatures };
                 const options = { types: {} };
                 
-                // Map geometry type to shpwrite types
-                switch (geomType) {
-                    case 'Point': options.types.point = 'Point'; break;
-                    case 'LineString': 
-                    case 'MultiLineString': 
-                        options.types.line = 'MultiLineString'; 
-                        break;
-                    case 'Polygon': options.types.polygon = 'Polygon'; break;
+                // Map category to shpwrite types
+                switch (category) {
+                    case 'point': options.types.point = 'MultiPoint'; break;
+                    case 'line': options.types.line = 'MultiLineString'; break;
+                    case 'polygon': options.types.polygon = 'MultiPolygon'; break;
                     default:
-                        console.warn(`Unsupported geometry type: ${geomType}`);
+                        console.warn(`Unsupported category: ${category}`);
                         continue;
                 }
 
@@ -219,11 +239,12 @@ export const handleDownloadShapefile = async (node, setIsDownloading, setStatusM
                     // Add to the main zip
                     for (let fileName in geomZip.files) {
                         const fileContent = await geomZip.files[fileName].async('uint8array');
-                        zip.file(`${baseFileName}_${geomType.toLowerCase()}.${fileName.split('.').pop()}`, fileContent, { compression: "DEFLATE", compressionOptions: { level: compressionLevel } });
+                        const suffix = categories.length > 1 ? `_${category}` : '';
+                        zip.file(`${baseFileName}${suffix}.${fileName.split('.').pop()}`, fileContent, { compression: "DEFLATE", compressionOptions: { level: compressionLevel } });
                     }
                 } catch (zipError) {
-                    console.error(`Error generating Shapefile for ${geomType}:`, zipError);
-                    setStatusMessage(`Error generating Shapefile for ${geomType}: ${zipError.message}`);
+                    console.error(`Error generating Shapefile for ${category}:`, zipError);
+                    setStatusMessage(`Error generating Shapefile for ${category}: ${zipError.message}`);
                 }
             }
 
